@@ -1,0 +1,295 @@
+--!strict
+-- Rayfield UI 로드
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local runService = game:GetService("RunService")
+
+-- 블록 관리
+local registeredBlocks = {}
+local spawnMode = false
+local followPointMode = false
+local followLockPos = nil
+local spawnPos = player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position or Vector3.new(0,0,0)
+local baseRadius = 20
+local baseSpeed = 5
+local radiusIncrement = 0.5
+local speedIncrement = 0.5
+local angleOffset = 0
+local targetPlayer = nil
+local followDistance = 50
+
+-- 보호막 모드
+local uMode = false
+local uDistance = 50
+
+-- Rayfield UI 생성
+local Window = Rayfield:CreateWindow({
+	Name = "반물사 스크립트",
+	LoadingTitle = "무요핑",
+	LoadingSubtitle = "by 무요핑",
+	ConfigurationSaving = { Enabled = false }
+})
+
+-- 메인 탭
+local MainTab = Window:CreateTab("Main Controls", 4483362458)
+local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
+
+-- 사용법 탭
+local HelpTab = Window:CreateTab("사용법", 4483362458)
+HelpTab:CreateLabel("t키/버튼 → 블록 등록")
+HelpTab:CreateLabel("y키 → 마우스 위치 따라가기 / 다시 y → 고정 위치")
+HelpTab:CreateLabel("k키 → 플레이어 추적")
+HelpTab:CreateLabel("z키 → 텔레포트")
+HelpTab:CreateLabel("U모드 → 보호막 모드 (슬라이더로 반지름 조절)")
+HelpTab:CreateLabel("마우스 휠 → y키 거리 조절 / U 모드 반지름 조절")
+HelpTab:CreateLabel("v키/버튼 → 모든 블록 해제")
+HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
+HelpTab:CreateLabel("m키 → UI 토글")
+
+-- 기능 함수들
+local function registerBlock(block)
+	if block and block:IsA("BasePart") and not block.Anchored then
+		registeredBlocks[block] = true
+	end
+end
+
+local function unregisterAllBlocks()
+	registeredBlocks = {}
+end
+
+local function restoreOwnership()
+	for block in pairs(registeredBlocks) do
+		if block.Parent and block:IsA("BasePart") then
+			block.Anchored = false
+			block:SetNetworkOwner(player)
+		end
+	end
+end
+
+-- 원형 회전
+local function updateCircularPlacement()
+	local char = player.Character
+	if not char or not char.PrimaryPart then return end
+	local center = char.PrimaryPart.Position
+	local count = 0
+	for block in pairs(registeredBlocks) do if block.Parent then count += 1 end end
+	if count == 0 then return end
+	local radius = baseRadius + (count-1)*radiusIncrement
+	local speed = baseSpeed + (count-1)*speedIncrement
+	local i = 0
+	for block in pairs(registeredBlocks) do
+		if block.Parent then
+			local angle = (i/count)*math.pi*2 + angleOffset
+			local targetPos = center + Vector3.new(math.cos(angle)*radius,0,math.sin(angle)*radius)
+			block.AssemblyLinearVelocity = (targetPos - block.Position)*speed
+			i += 1
+		end
+	end
+end
+
+-- 스폰 이동
+local function updateSpawnPlacement()
+	local targetPos = spawnPos + Vector3.new(0,100,0)
+	for block in pairs(registeredBlocks) do
+		if block.Parent then
+			block.AssemblyLinearVelocity = (targetPos - block.Position)*5
+		end
+	end
+end
+
+-- 플레이어 추적
+local function updateTargetTracking()
+	if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character.PrimaryPart then return end
+	local targetPos = targetPlayer.Character.PrimaryPart.Position
+	for block in pairs(registeredBlocks) do
+		if block.Parent then
+			block.AssemblyLinearVelocity = (targetPos - block.Position)*8
+		end
+	end
+end
+
+-- 마우스 따라가기
+local function updateFollowPointPlacement()
+	local char = player.Character
+	if not char or not char.PrimaryPart then return end
+	local basePos = char.PrimaryPart.Position
+	local targetCenter
+	if followLockPos then
+		targetCenter = followLockPos
+	else
+		local mouseRay = workspace.CurrentCamera:ScreenPointToRay(mouse.X,mouse.Y)
+		local dir = mouseRay.Direction.Unit
+		targetCenter = basePos + dir*followDistance
+	end
+	for block in pairs(registeredBlocks) do
+		if block.Parent then
+			block.AssemblyLinearVelocity = (targetCenter - block.Position)*8
+		end
+	end
+end
+
+-- 자동 반구 보호막
+local function updateDomePlacement()
+	local char = player.Character
+	if not char or not char.PrimaryPart then return end
+	local center = char.PrimaryPart.Position
+	local blocks = {}
+	for block in pairs(registeredBlocks) do if block.Parent then table.insert(blocks, block) end end
+	local total = #blocks
+	if total == 0 then return end
+	local layerHeight = 15
+	local layerRadiusStep = 15
+	local idx = 1
+	local layers = math.ceil(math.sqrt(total))
+	for layer = 0, layers-1 do
+		local y = layer * layerHeight
+		local radius = math.max(0, uDistance - layer*layerRadiusStep)
+		local circumference = 2*math.pi*radius
+		local cols = math.max(1, math.floor(circumference/10))
+		for col = 0, cols-1 do
+			if idx > total then return end
+			local angle = (col/cols)*2*math.pi
+			local x = radius * math.cos(angle)
+			local z = radius * math.sin(angle)
+			local block = blocks[idx]
+			local targetPos = center + Vector3.new(x, y, z)
+			block.AssemblyLinearVelocity = (targetPos - block.Position)*10
+			idx += 1
+		end
+	end
+end
+
+-- Rayfield 버튼
+MainTab:CreateButton({Name="블록 등록 (마우스)", Callback=function()
+	local target = mouse.Target
+	registerBlock(target)
+end})
+
+MainTab:CreateButton({Name="모든 블록 해제", Callback=unregisterAllBlocks})
+MainTab:CreateButton({Name="텔레포트 (마우스 위치)", Callback=function()
+	local char = player.Character
+	if char and char:FindFirstChild("HumanoidRootPart") then
+		local root = char.HumanoidRootPart
+		root.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,3,0))
+	end
+end})
+
+MainTab:CreateToggle({
+	Name="보호막 모드",
+	CurrentValue=uMode,
+	Callback=function(Value)
+		uMode = Value
+		if uMode then
+			followPointMode=false spawnMode=false targetPlayer=nil restoreOwnership()
+		end
+	end
+})
+
+MainTab:CreateSlider({
+	Name="보호막 반지름",
+	Range={10,300},
+	Increment=5,
+	CurrentValue=uDistance,
+	Callback=function(Value)
+		uDistance = Value
+	end
+})
+
+-- 키다운 기능
+local function onKeyDown(key)
+	if key=="t" then
+		local target = mouse.Target
+		registerBlock(target)
+	elseif key=="y" then
+		uMode=false
+		if followPointMode and not followLockPos then
+			local char=player.Character
+			if char and char.PrimaryPart then
+				local mouseRay = workspace.CurrentCamera:ScreenPointToRay(mouse.X,mouse.Y)
+				local dir = mouseRay.Direction.Unit
+				followLockPos = char.PrimaryPart.Position + dir*followDistance
+			end
+		elseif followPointMode and followLockPos then
+			followLockPos=nil
+			followPointMode=false
+		else
+			followPointMode=true
+			followLockPos=nil
+			restoreOwnership()
+		end
+	elseif key=="k" then
+		uMode=false
+		local target = mouse.Target
+		local newTargetPlayer = nil
+		if target then
+			local model = target:FindFirstAncestorWhichIsA("Model")
+			if model and game.Players:GetPlayerFromCharacter(model) and model ~= player.Character then
+				newTargetPlayer = game.Players:GetPlayerFromCharacter(model)
+			end
+		end
+		if newTargetPlayer then
+			targetPlayer=newTargetPlayer
+			followPointMode=false followLockPos=nil spawnMode=false
+			for block in pairs(registeredBlocks) do if block and block.Parent then block:SetNetworkOwner(player) end end
+		else
+			targetPlayer=nil
+		end
+	elseif key=="z" then
+		local char=player.Character
+		if char and char:FindFirstChild("HumanoidRootPart") then
+			char.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,3,0))
+		end
+	elseif key=="v" then
+		unregisterAllBlocks()
+	elseif key=="c" then
+		uMode=false spawnMode=not spawnMode
+		if spawnMode then followPointMode=false followLockPos=nil targetPlayer=nil restoreOwnership() end
+	elseif key=="m" then
+		Window:Toggle()
+	end
+end
+
+mouse.KeyDown:Connect(onKeyDown)
+
+-- Heartbeat 루프
+runService.Heartbeat:Connect(function()
+	if uMode then
+		updateDomePlacement()
+		ModeLabel:Set("현재 모드: 보호막 모드 (반지름 "..uDistance..")")
+	elseif targetPlayer then
+		updateTargetTracking()
+		ModeLabel:Set("현재 모드: 플레이어 추적 → "..targetPlayer.Name)
+	elseif followPointMode then
+		updateFollowPointPlacement()
+		if followLockPos then
+			ModeLabel:Set("현재 모드: 고정 위치 유지")
+		else
+			ModeLabel:Set("현재 모드: 마우스 이동 ("..followDistance.." Studs)")
+		end
+	elseif spawnMode then
+		updateSpawnPlacement()
+		ModeLabel:Set("현재 모드: 스폰 위치 이동")
+	else
+		angleOffset += (baseSpeed + (#registeredBlocks-1)*speedIncrement)*0.01
+		updateCircularPlacement()
+		ModeLabel:Set("현재 모드: 원형 회전")
+	end
+end)
+
+-- 마우스 휠
+mouse.WheelForward:Connect(function()
+	if followPointMode and not followLockPos then
+		followDistance = math.min(followDistance+5,300)
+	elseif uMode then
+		uDistance = math.min(uDistance+5,300)
+	end
+end)
+mouse.WheelBackward:Connect(function()
+	if followPointMode and not followLockPos then
+		followDistance = math.max(followDistance-5,10)
+	elseif uMode then
+		uDistance = math.max(uDistance-5,10)
+	end
+end)
