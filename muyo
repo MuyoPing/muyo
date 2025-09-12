@@ -147,37 +147,43 @@ HelpTab:CreateLabel("v키/버튼 → 모든 블록 해제")
 HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
 HelpTab:CreateLabel("m키 → UI 토글")
 
--- ===== 방어 탭 추가 =====
-local autoReleaseEnabled = false
+-- ===== 방어 탭 추가 (그냥 붙이면 됨) =====
+do
+    local autoReleaseEnabled = false
+    local success, DefenseTab = pcall(function()
+        return Window:CreateTab("방어", 4483362460) -- 기존 탭과 다른 고유 아이콘 ID
+    end)
 
--- 기존 Window 객체 사용
-local DefenseTab = Window:CreateTab("방어", 4483362459) -- 기존 탭과 다른 고유 아이콘 ID
-
--- Auto Release 토글 버튼
-DefenseTab:CreateToggle({
-    Name = "Auto Release",
-    CurrentValue = autoReleaseEnabled,
-    Callback = function(Value)
-        autoReleaseEnabled = Value
-        Rayfield:Notify({
-            Title = "Auto Release",
-            Content = autoReleaseEnabled and "활성화됨" or "비활성화됨",
-            Duration = 2
+    if success and DefenseTab then
+        -- Auto Release 토글 버튼
+        DefenseTab:CreateToggle({
+            Name = "Auto Release",
+            CurrentValue = autoReleaseEnabled,
+            Callback = function(Value)
+                autoReleaseEnabled = Value
+                Rayfield:Notify({
+                    Title = "Auto Release",
+                    Content = autoReleaseEnabled and "활성화됨" or "비활성화됨",
+                    Duration = 2
+                })
+            end
         })
-    end
-})
 
--- Grab 이벤트 후킹
--- 실제 게임 이벤트 이름에 맞게 수정 필요
-local grabEvent = workspace:WaitForChild("GrabEvent") -- 예: GrabEvent RemoteEvent
-grabEvent.OnClientEvent:Connect(function(grabbedObject, grabOwner)
-    if autoReleaseEnabled and grabOwner ~= player then
-        local releaseRemote = workspace:FindFirstChild("ReleaseRemote") -- 서버 RemoteEvent
-        if releaseRemote then
-            releaseRemote:FireServer()
+        -- Grab 이벤트 후킹
+        local grabEvent = workspace:FindFirstChild("GrabEvent") -- 실제 GrabEvent 이름에 맞게 수정 필요
+        if grabEvent then
+            grabEvent.OnClientEvent:Connect(function(grabbedObject, grabOwner)
+                if autoReleaseEnabled and grabOwner ~= game.Players.LocalPlayer then
+                    local releaseRemote = workspace:FindFirstChild("ReleaseRemote") -- 서버 RemoteEvent 이름
+                    if releaseRemote then
+                        releaseRemote:FireServer()
+                    end
+                end
+            end)
         end
     end
-end)
+end
+
 
 -- 기능 함수들
 local function registerBlock(block)
