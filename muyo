@@ -38,6 +38,8 @@ local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 
 -- 📌 텔레포트 탭 생성
 local TeleportTab = Window:CreateTab("텔레포트", 4483362458)
+local player = game.Players.LocalPlayer
+local runService = game:GetService("RunService")
 
 -- 스폰 구역 텔레포트 버튼
 TeleportTab:CreateButton({
@@ -57,11 +59,14 @@ TeleportTab:CreateButton({
 })
 
 -- 플레이어 목록 준비
-local playerList = {}
-for _, plr in ipairs(game.Players:GetPlayers()) do
-    if plr ~= player then
-        table.insert(playerList, plr.Name)
+local function getPlayerList()
+    local list = {}
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player then
+            table.insert(list, plr.Name)
+        end
     end
+    return list
 end
 
 local SelectedPlayer = nil
@@ -69,11 +74,18 @@ local SelectedPlayer = nil
 -- 드롭다운
 local PlayerDropdown = TeleportTab:CreateDropdown({
     Name = "플레이어 선택",
-    Options = playerList,
-    CurrentOption = {},
+    Options = getPlayerList(),
+    CurrentOption = "",
     MultiSelection = false,
     Callback = function(option)
-        SelectedPlayer = game.Players:FindFirstChild(option)
+        local selectedName
+        if type(option) == "table" then
+            selectedName = option[1]
+        else
+            selectedName = option
+        end
+
+        SelectedPlayer = game.Players:FindFirstChild(selectedName)
         if SelectedPlayer then
             Rayfield:Notify({
                 Title = "선택됨",
@@ -88,13 +100,15 @@ local PlayerDropdown = TeleportTab:CreateDropdown({
 TeleportTab:CreateButton({
     Name = "플레이어 목록 새로고침",
     Callback = function()
-        local refreshedList = {}
-        for _, plr in ipairs(game.Players:GetPlayers()) do
-            if plr ~= player then
-                table.insert(refreshedList, plr.Name)
-            end
-        end
+        local refreshedList = getPlayerList()
         PlayerDropdown:Refresh(refreshedList, true)
+        PlayerDropdown:SetOption("") -- 선택 초기화
+        SelectedPlayer = nil
+        Rayfield:Notify({
+            Title = "목록 새로고침",
+            Content = "플레이어 목록이 갱신되었습니다.",
+            Duration = 3
+        })
     end
 })
 
@@ -102,11 +116,15 @@ TeleportTab:CreateButton({
 TeleportTab:CreateButton({
     Name = "선택한 플레이어한테 텔레포트",
     Callback = function()
-        if SelectedPlayer then
-            local targetChar = SelectedPlayer.Character or SelectedPlayer.CharacterAdded:Wait()
-            local targetHRP = targetChar:WaitForChild("HumanoidRootPart")
+        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local targetHRP = SelectedPlayer.Character.HumanoidRootPart
             local myChar = player.Character or player.CharacterAdded:Wait()
             local myHRP = myChar:WaitForChild("HumanoidRootPart")
+
+            -- 네트워크 오너권 가져오기 시도 (가능한 게임에서만)
+            pcall(function()
+                targetHRP:SetNetworkOwner(player)
+            end)
 
             myHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 3, 0)
 
@@ -118,7 +136,7 @@ TeleportTab:CreateButton({
         else
             Rayfield:Notify({
                 Title = "텔레포트 실패",
-                Content = "플레이어를 선택하지 않았습니다.",
+                Content = "플레이어를 선택하지 않았거나 위치를 찾을 수 없습니다.",
                 Duration = 3
             })
         end
