@@ -33,8 +33,72 @@ local Window = Rayfield:CreateWindow({
 })
 
 -- 메인 탭
-local MainTab = Window:CreateTab("Main Controls", 4483362458)
+local MainTab = Window:CreateTab("메인", 4483362458)
 local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
+-- 📌 텔레포트 탭 생성
+local TeleportTab = Window:CreateTab("텔레포트", 4483362458)
+
+-- 스폰 구역 텔레포트 버튼
+TeleportTab:CreateButton({
+    Name = "스폰 구역으로 이동",
+    Callback = function()
+        local char = player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            -- 스폰 구역은 보통 SpawnLocation 파트 기준
+            local spawnLocation = workspace:FindFirstChildWhichIsA("SpawnLocation")
+            if spawnLocation then
+                char.HumanoidRootPart.CFrame = spawnLocation.CFrame + Vector3.new(0, 5, 0)
+            else
+                Rayfield:Notify({
+                    Title = "텔레포트 실패",
+                    Content = "스폰 구역을 찾을 수 없습니다.",
+                    Duration = 5
+                })
+            end
+        end
+    end
+})
+
+-- 플레이어 텔레포트 드롭다운
+local playerList = {}
+for _, plr in ipairs(game.Players:GetPlayers()) do
+    if plr ~= player then
+        table.insert(playerList, plr.Name)
+    end
+end
+
+local SelectedPlayer = nil
+
+local PlayerDropdown = TeleportTab:CreateDropdown({
+    Name = "플레이어 선택 후 텔레포트",
+    Options = playerList,
+    CurrentOption = {},
+    MultiSelection = false,
+    Flag = "PlayerTeleportDropdown",
+    Callback = function(option)
+        SelectedPlayer = game.Players:FindFirstChild(option)
+        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local char = player.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                char.HumanoidRootPart.CFrame = SelectedPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
+            end
+        end
+    end
+})
+
+-- 실시간 플레이어 목록 갱신 버튼
+TeleportTab:CreateButton({
+    Name = "플레이어 목록 새로고침",
+    Callback = function()
+        local refreshedList = {}
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(refreshedList, plr.Name)
+            end
+        end
+        PlayerDropdown:Refresh(refreshedList, true)
+    end
+})
 
 -- 사용법 탭
 local HelpTab = Window:CreateTab("사용법", 4483362458)
