@@ -58,16 +58,17 @@ TeleportTab:CreateButton({
     end
 })
 
--- 플레이어 목록 준비
+-- 플레이어 목록 준비 (표시닉 + 본닉)
 local function getPlayerList()
     local list = {}
     for _, plr in ipairs(game.Players:GetPlayers()) do
         if plr ~= player then
-            table.insert(list, plr.Name)
+            table.insert(list, plr.DisplayName .. " (" .. plr.Name .. ")")
         end
     end
     return list
 end
+
 
 local SelectedPlayer = nil
 
