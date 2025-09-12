@@ -99,10 +99,19 @@ local PlayerDropdown = TeleportTab:CreateDropdown({
 TeleportTab:CreateButton({
     Name = "플레이어 목록 새로고침",
     Callback = function()
-        local refreshedList = getPlayerList()
+        -- 최신 플레이어 목록 가져오기
+        local refreshedList = {}
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(refreshedList, plr.DisplayName .. " (" .. plr.Name .. ")")
+            end
+        end
+
+        -- 드롭다운 옵션 완전히 새로 적용
         PlayerDropdown:Refresh(refreshedList, true)
         PlayerDropdown:SetOption("") -- 선택 초기화
         SelectedPlayer = nil
+
         Rayfield:Notify({
             Title = "목록 새로고침",
             Content = "플레이어 목록이 갱신되었습니다.",
