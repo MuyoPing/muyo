@@ -69,7 +69,6 @@ local function getPlayerList()
     return list
 end
 
-
 local SelectedPlayer = nil
 
 -- 드롭다운
@@ -79,18 +78,17 @@ local PlayerDropdown = TeleportTab:CreateDropdown({
     CurrentOption = "",
     MultiSelection = false,
     Callback = function(option)
-        local selectedName
         if type(option) == "table" then
-            selectedName = option[1]
-        else
-            selectedName = option
+            option = option[1]
         end
-
+        -- 본닉(Name)만 추출
+        local selectedName = option:match("%((.-)%)")
         SelectedPlayer = game.Players:FindFirstChild(selectedName)
+
         if SelectedPlayer then
             Rayfield:Notify({
                 Title = "선택됨",
-                Content = SelectedPlayer.Name .. " 님이 선택되었습니다.",
+                Content = SelectedPlayer.DisplayName .. " (" .. SelectedPlayer.Name .. ") 님이 선택되었습니다.",
                 Duration = 3
             })
         end
@@ -131,7 +129,7 @@ TeleportTab:CreateButton({
 
             Rayfield:Notify({
                 Title = "텔레포트 성공",
-                Content = SelectedPlayer.Name .. " 님에게 이동했습니다.",
+                Content = SelectedPlayer.DisplayName .. " (" .. SelectedPlayer.Name .. ") 님에게 이동했습니다.",
                 Duration = 3
             })
         else
