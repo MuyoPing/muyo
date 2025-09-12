@@ -134,12 +134,12 @@ TeleportTab:CreateButton({
 })
 
 -- ===== 방어 탭 추가 =====
-local DefenseTab = Window:CreateTab("방어", 4483362458)
-
--- Auto Release 토글 상태
 local autoReleaseEnabled = false
 
--- Auto Release 버튼
+-- 기존 Window 객체 사용
+local DefenseTab = Window:CreateTab("방어", 4483362459) -- 기존 탭과 다른 고유 아이콘 ID
+
+-- Auto Release 토글 버튼
 DefenseTab:CreateToggle({
     Name = "Auto Release",
     CurrentValue = autoReleaseEnabled,
@@ -154,17 +154,17 @@ DefenseTab:CreateToggle({
 })
 
 -- Grab 이벤트 후킹
--- 실제 레이필드/게임 Grab 이벤트 이름에 맞춰 수정 필요
+-- 실제 게임 이벤트 이름에 맞게 수정 필요
 local grabEvent = workspace:WaitForChild("GrabEvent") -- 예: GrabEvent RemoteEvent
 grabEvent.OnClientEvent:Connect(function(grabbedObject, grabOwner)
     if autoReleaseEnabled and grabOwner ~= player then
-        -- 서버 RemoteEvent 이름에 맞춰 수정
-        local releaseRemote = workspace:FindFirstChild("ReleaseRemote")
+        local releaseRemote = workspace:FindFirstChild("ReleaseRemote") -- 서버 RemoteEvent
         if releaseRemote then
             releaseRemote:FireServer()
         end
     end
 end)
+
 
 -- 사용법 탭
 local HelpTab = Window:CreateTab("사용법", 4483362458)
