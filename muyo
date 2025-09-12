@@ -44,7 +44,6 @@ TeleportTab:CreateButton({
     Callback = function()
         local char = player.Character
         if char and char:FindFirstChild("HumanoidRootPart") then
-            -- 스폰 구역은 보통 SpawnLocation 파트 기준
             local spawnLocation = workspace:FindFirstChildWhichIsA("SpawnLocation")
             if spawnLocation then
                 char.HumanoidRootPart.CFrame = spawnLocation.CFrame + Vector3.new(0, 5, 0)
@@ -59,46 +58,67 @@ TeleportTab:CreateButton({
     end
 })
 
--- 플레이어 텔레포트 드롭다운
-local playerList = {}
-for _, plr in ipairs(game.Players:GetPlayers()) do
-    if plr ~= player then
-        table.insert(playerList, plr.Name)
-    end
-end
-
+-- 현재 선택된 플레이어 저장
 local SelectedPlayer = nil
 
-local PlayerDropdown = TeleportTab:CreateDropdown({
-    Name = "플레이어 선택 후 텔레포트",
-    Options = playerList,
+-- 플레이어 리스트 업데이트 함수
+local function GetPlayerList()
+    local list = {}
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player then
+            table.insert(list, plr.Name)
+        end
+    end
+    return list
+end
+
+-- 📌 스크롤 가능한 플레이어 선택 리스트
+local PlayerListBox = TeleportTab:CreateDropdown({
+    Name = "플레이어 목록 (클릭해서 선택)",
+    Options = GetPlayerList(),
     CurrentOption = {},
     MultiSelection = false,
-    Flag = "PlayerTeleportDropdown",
+    Flag = "PlayerListDropdown",
     Callback = function(option)
         SelectedPlayer = game.Players:FindFirstChild(option)
+        if SelectedPlayer then
+            Rayfield:Notify({
+                Title = "플레이어 선택됨",
+                Content = SelectedPlayer.Name .. " 을(를) 선택했습니다.",
+                Duration = 3
+            })
+        end
+    end
+})
+
+-- 📌 선택한 플레이어에게 텔레포트 버튼
+TeleportTab:CreateButton({
+    Name = "선택한 플레이어한테 텔레포트",
+    Callback = function()
         if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
             local char = player.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
                 char.HumanoidRootPart.CFrame = SelectedPlayer.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
             end
+        else
+            Rayfield:Notify({
+                Title = "텔레포트 실패",
+                Content = "선택된 플레이어가 없거나 캐릭터를 찾을 수 없습니다.",
+                Duration = 4
+            })
         end
     end
 })
 
--- 실시간 플레이어 목록 갱신 버튼
+-- 📌 플레이어 목록 새로고침 버튼
 TeleportTab:CreateButton({
     Name = "플레이어 목록 새로고침",
     Callback = function()
-        local refreshedList = {}
-        for _, plr in ipairs(game.Players:GetPlayers()) do
-            if plr ~= player then
-                table.insert(refreshedList, plr.Name)
-            end
-        end
-        PlayerDropdown:Refresh(refreshedList, true)
+        local refreshedList = GetPlayerList()
+        PlayerListBox:Refresh(refreshedList, true)
     end
 })
+
 
 -- 사용법 탭
 local HelpTab = Window:CreateTab("사용법", 4483362458)
