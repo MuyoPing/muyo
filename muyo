@@ -42,20 +42,24 @@ local ProtectionTab = Window:CreateTab("보호", 4483362458)
 -- 📌 플레이어 탭 생성
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
 local localPlayer = game.Players.LocalPlayer
-local char = localPlayer.Character or localPlayer.CharacterAdded:Wait()
-local hrp = char:WaitForChild("HumanoidRootPart")
-local humanoid = char:FindFirstChildOfClass("Humanoid")
+
+-- 걷기 속도 적용 함수
+local function updateWalkSpeed(value)
+    local char = localPlayer.Character
+    local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = value
+    end
+end
 
 -- 걷기 속도 슬라이더
-PlayerTab:CreateSlider({
+local walkSpeedSlider = PlayerTab:CreateSlider({
     Name = "걷기 속도",
     Range = {16, 500}, -- 기본 속도 16 ~ 최대 500
     Increment = 1,
-    CurrentValue = humanoid.WalkSpeed,
+    CurrentValue = 16,
     Callback = function(value)
-        if humanoid then
-            humanoid.WalkSpeed = value
-        end
+        updateWalkSpeed(value)
     end
 })
 
@@ -79,18 +83,23 @@ PlayerTab:CreateToggle({
     end
 })
 
--- Heartbeat에 연결하여 무한 점프 및 노클립 적용
-runService.Heartbeat:Connect(function()
-    char = localPlayer.Character
-    humanoid = char and char:FindFirstChildOfClass("Humanoid")
-    hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not humanoid or not hrp then return end
-
-    -- 무한 점프
-    if infiniteJumpEnabled then
-        humanoid.JumpPower = 50
-        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+-- 무한 점프 구현 (Space 키 입력 기반)
+local uis = game:GetService("UserInputService")
+uis.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Space and infiniteJumpEnabled then
+        local char = localPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
     end
+end)
+
+-- Heartbeat에 연결하여 노클립 적용
+runService.Heartbeat:Connect(function()
+    local char = localPlayer.Character
+    if not char then return end
 
     -- 노클립
     if noclipEnabled then
