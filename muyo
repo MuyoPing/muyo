@@ -36,6 +36,72 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("메인", 4483362458)
 local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 
+-- 보호 탭 생성
+local ProtectionTab = Window:CreateTab("보호", 4483362458)
+
+-- 안티 그렙 토글 플래그
+local antiGrabEnabled = false
+local antiGrabConnection = nil
+
+ProtectionTab:CreateToggle({
+    Name = "안티 그렙",
+    CurrentValue = false,
+    Callback = function(Value)
+        antiGrabEnabled = Value
+
+        -- 켜기
+        if antiGrabEnabled then
+            local rs = game:GetService("ReplicatedStorage")
+            local plr = game.Players.LocalPlayer
+            local character = plr.Character or plr.CharacterAdded:Wait()
+            local torso = character:FindFirstChild("HumanoidRootPart") 
+                          or character:FindFirstChild("Torso") 
+                          or character:FindFirstChild("UpperTorso")
+            local isAnchored = false
+
+            antiGrabConnection = runService.Heartbeat:Connect(function()
+                -- Struggle 호출
+                rs.CharacterEvents.Struggle:FireServer(plr)
+                
+                -- Player 안의 IsHeld 확인
+                local heldValue = plr:FindFirstChild("IsHeld")
+                if heldValue and heldValue.Value == true then
+                    if not isAnchored then
+                        if torso then
+                            torso.Anchored = true
+                            isAnchored = true
+                        end
+                    end
+                else
+                    if isAnchored then
+                        if torso then
+                            torso.Anchored = false
+                            isAnchored = false
+                        end
+                    end
+                end
+            end)
+
+        -- 끄기
+        else
+            if antiGrabConnection then
+                antiGrabConnection:Disconnect()
+                antiGrabConnection = nil
+            end
+            -- 혹시 고정돼있으면 풀기
+            local char = game.Players.LocalPlayer.Character
+            if char then
+                local torso = char:FindFirstChild("HumanoidRootPart") 
+                              or char:FindFirstChild("Torso") 
+                              or char:FindFirstChild("UpperTorso")
+                if torso then
+                    torso.Anchored = false
+                end
+            end
+        end
+    end
+})
+
 -- 📌 텔레포트 탭 생성
 local TeleportTab = Window:CreateTab("텔레포트", 4483362458)
 local player = game.Players.LocalPlayer
