@@ -39,6 +39,77 @@ local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 -- 보호 탭 생성
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
+-- 📌 그렙 탭 생성
+local GrapTab = Window:CreateTab("그렙", 4483362458)
+
+-- 상태 변수
+local noclipTargetEnabled = false
+local grabbedPartsOriginal = {}
+
+-- 내 캐릭터 파츠 제외
+local function getMyParts()
+    local char = game.Players.LocalPlayer.Character
+    if not char then return {} end
+    local parts = {}
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") then
+            parts[p] = true
+        end
+    end
+    return parts
+end
+
+-- 잡은 오브젝트 파츠 가져오기 (내 캐릭터 제외)
+local function getGrabbedParts()
+    local owned = {}
+    local myParts = getMyParts()
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") and not myParts[part] then
+            local owner = nil
+            pcall(function() owner = part:GetNetworkOwner() end)
+            if owner == game.Players.LocalPlayer then
+                table.insert(owned, part)
+            end
+        end
+    end
+    return owned
+end
+
+-- 노클립 켜기
+local function enableGrabbedNoclip()
+    local parts = getGrabbedParts()
+    for _, p in ipairs(parts) do
+        if grabbedPartsOriginal[p] == nil then
+            grabbedPartsOriginal[p] = p.CanCollide
+        end
+        p.CanCollide = false
+    end
+end
+
+-- 노클립 끄기
+local function disableGrabbedNoclip()
+    for p, val in pairs(grabbedPartsOriginal) do
+        if p and p.Parent then
+            p.CanCollide = val
+        end
+    end
+    grabbedPartsOriginal = {}
+end
+
+-- 토글 UI
+GrapTab:CreateToggle({
+    Name = "잡은 대상 노클립",
+    CurrentValue = false,
+    Callback = function(value)
+        noclipTargetEnabled = value
+        if value then
+            enableGrabbedNoclip()
+        else
+            disableGrabbedNoclip()
+        end
+    end
+})
+
 -- 📌 플레이어 탭 생성
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
 local localPlayer = game.Players.LocalPlayer
