@@ -47,6 +47,7 @@ local localPlayer = game.Players.LocalPlayer
 local infiniteJumpEnabled = false
 local noclipEnabled = false
 local walkSpeedValue = 16 -- 기본 걷기 속도
+local lastChar = nil
 
 -- 걷기 속도 슬라이더
 PlayerTab:CreateSlider({
@@ -56,6 +57,13 @@ PlayerTab:CreateSlider({
     CurrentValue = walkSpeedValue,
     Callback = function(value)
         walkSpeedValue = value
+        local char = localPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = walkSpeedValue
+            end
+        end
     end
 })
 
@@ -74,6 +82,14 @@ PlayerTab:CreateToggle({
     CurrentValue = false,
     Callback = function(value)
         noclipEnabled = value
+        local char = localPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = not noclipEnabled and true or false
+                end
+            end
+        end
     end
 })
 
@@ -89,27 +105,32 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, gameProce
     end
 end)
 
--- Heartbeat 루프에서 걷기 속도와 노클립 적용
-runService.Heartbeat:Connect(function()
-    local char = localPlayer.Character
-    if not char then return end
-
+-- 캐릭터 리스폰 처리
+local function setupChar(char)
+    -- 걷기 속도 적용
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
-        -- 걷기 속도 항상 적용
         humanoid.WalkSpeed = walkSpeedValue
     end
 
-    -- 노클립 처리
+    -- 노클립 적용
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
-            if noclipEnabled then
-                part.CanCollide = false
-            else
-                part.CanCollide = true
-            end
+            part.CanCollide = not noclipEnabled and true or false
         end
     end
+end
+
+-- 현재 캐릭터 초기화
+if localPlayer.Character then
+    lastChar = localPlayer.Character
+    setupChar(lastChar)
+end
+
+-- 캐릭터 변경 감지
+localPlayer.CharacterAdded:Connect(function(char)
+    lastChar = char
+    setupChar(char)
 end)
 
 -- 안티 그렙 토글 플래그
