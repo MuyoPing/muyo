@@ -39,15 +39,15 @@ local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 -- 보호 탭 생성
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
--- 플레이어 탭
+-- 📌 플레이어 탭 생성
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
 local localPlayer = game.Players.LocalPlayer
 
 -- 상태 변수
+local walkSpeedValue = 16 -- 기본 속도
 local infiniteJumpEnabled = false
 local noclipEnabled = false
-local walkSpeedValue = 16 -- 기본 걷기 속도
-local lastChar = nil
+local lastChar = localPlayer.Character
 
 -- 걷기 속도 슬라이더
 PlayerTab:CreateSlider({
@@ -67,7 +67,7 @@ PlayerTab:CreateSlider({
     end
 })
 
--- 무한 점프 토글 (Space 키)
+-- 무한 점프 토글
 PlayerTab:CreateToggle({
     Name = "무한 점프",
     CurrentValue = false,
@@ -86,7 +86,8 @@ PlayerTab:CreateToggle({
         if char then
             for _, part in ipairs(char:GetDescendants()) do
                 if part:IsA("BasePart") then
-                    part.CanCollide = not noclipEnabled and true or false
+                    -- 켜면 CanCollide 해제, 끄면 원복
+                    part.CanCollide = not noclipEnabled
                 end
             end
         end
@@ -94,7 +95,8 @@ PlayerTab:CreateToggle({
 })
 
 -- 무한 점프 구현
-game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
+local uis = game:GetService("UserInputService")
+uis.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Space and infiniteJumpEnabled then
         local char = localPlayer.Character
@@ -105,8 +107,8 @@ game:GetService("UserInputService").InputBegan:Connect(function(input, gameProce
     end
 end)
 
--- 캐릭터 리스폰 처리
-local function setupChar(char)
+-- 캐릭터가 바뀔 때 슬라이더와 노클립 적용
+local function setupCharacter(char)
     -- 걷기 속도 적용
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
@@ -116,22 +118,21 @@ local function setupChar(char)
     -- 노클립 적용
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.CanCollide = not noclipEnabled and true or false
+            part.CanCollide = not noclipEnabled
         end
     end
 end
 
--- 현재 캐릭터 초기화
+-- 초기 캐릭터 적용
 if localPlayer.Character then
-    lastChar = localPlayer.Character
-    setupChar(lastChar)
+    setupCharacter(localPlayer.Character)
 end
 
--- 캐릭터 변경 감지
+-- 캐릭터 리스폰 감지
 localPlayer.CharacterAdded:Connect(function(char)
-    lastChar = char
-    setupChar(char)
+    setupCharacter(char)
 end)
+
 
 -- 안티 그렙 토글 플래그
 local antiGrabEnabled = false
