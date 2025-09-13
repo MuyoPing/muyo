@@ -98,7 +98,7 @@ end
 
 -- 토글 UI
 GrapTab:CreateToggle({
-    Name = "잡은 대상 노클립",
+    Name = "노클립 그렙",
     CurrentValue = false,
     Callback = function(value)
         noclipTargetEnabled = value
