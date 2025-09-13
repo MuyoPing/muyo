@@ -42,11 +42,77 @@ local ProtectionTab = Window:CreateTab("보호", 4483362458)
 -- 📌 플레이어 탭 생성
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
 local localPlayer = game.Players.LocalPlayer
+local runService = game:GetService("RunService")
 
 -- 상태 변수
 local walkSpeedValue = 16 -- 기본 속도
 local infiniteJumpEnabled = false
 local noclipEnabled = false
+
+-- 🟢 노클립 관련 변수
+local steppedConnection = nil
+local originalCanCollide = {}
+local PART_NAMES = {"Head","Torso","UpperTorso","LowerTorso","HumanoidRootPart"}
+
+-- 🟢 캐릭터 파츠 모으기
+local function getCharacterParts(char)
+    local parts = {}
+    for _, name in ipairs(PART_NAMES) do
+        local p = char:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            table.insert(parts, p)
+        end
+    end
+    return parts
+end
+
+-- 🟢 노클립 켜기
+local function enableNoclip(char)
+    char = char or localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    if noclipEnabled then return end
+    local parts = getCharacterParts(char)
+
+    -- 원래값 저장
+    originalCanCollide = {}
+    for _, p in ipairs(parts) do
+        originalCanCollide[p] = p.CanCollide
+    end
+
+    steppedConnection = runService.Stepped:Connect(function()
+        for _, p in ipairs(parts) do
+            if p and p.Parent then
+                p.CanCollide = false
+            end
+        end
+    end)
+
+    noclipEnabled = true
+    warn("[noclip] enabled")
+end
+
+-- 🟢 노클립 끄기
+local function disableNoclip(char)
+    char = char or localPlayer.Character
+    if not noclipEnabled then return end
+
+    if steppedConnection then
+        steppedConnection:Disconnect()
+        steppedConnection = nil
+    end
+
+    -- 복구
+    if char then
+        for p, val in pairs(originalCanCollide) do
+            if p and p.Parent then
+                p.CanCollide = val
+            end
+        end
+    end
+
+    originalCanCollide = {}
+    noclipEnabled = false
+    warn("[noclip] disabled")
+end
 
 -- 걷기 속도 슬라이더
 PlayerTab:CreateSlider({
@@ -75,12 +141,16 @@ PlayerTab:CreateToggle({
     end
 })
 
--- 노클립 토글
+-- 🟢 노클립 토글 (버튼 유지)
 PlayerTab:CreateToggle({
     Name = "노클립",
     CurrentValue = false,
     Callback = function(value)
-        noclipEnabled = value
+        if value then
+            enableNoclip()
+        else
+            disableNoclip()
+        end
     end
 })
 
@@ -97,19 +167,16 @@ uis.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- 캐릭터 초기화 함수 (걷기 속도 + 노클립 적용)
+-- 캐릭터 초기화 (걷기 속도 적용)
 local function setupCharacter(char)
-    -- 걷기 속도
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = walkSpeedValue
     end
 
-    -- 노클립 초기 상태 적용
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.CanCollide = not noclipEnabled
-        end
+    -- 만약 리스폰했는데 노클립이 켜져있으면 다시 적용
+    if noclipEnabled then
+        enableNoclip(char)
     end
 end
 
@@ -123,37 +190,16 @@ localPlayer.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
 
--- Heartbeat 루프에서 걷기 속도 유지 + 안전 노클립
+-- Heartbeat 루프: 걷기 속도 유지
 runService.Heartbeat:Connect(function()
     local char = localPlayer.Character
     if not char then return end
-
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = walkSpeedValue
     end
-
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    for _, part in ipairs(char:GetDescendants()) do
-        if part:IsA("BasePart") then
-            if noclipEnabled then
-                part.CanCollide = false
-            else
-                part.CanCollide = true
-            end
-        end
-    end
-
-    -- 노클립 끈 직후 날아다니는 현상 최소화
-    if not noclipEnabled and hrp then
-        local ray = Ray.new(hrp.Position, Vector3.new(0,-5,0))
-        local hit = workspace:FindPartOnRay(ray, char)
-        if not hit then
-            -- 바닥이 없으면 살짝 아래로 이동
-            hrp.CFrame = hrp.CFrame + Vector3.new(0,-0.1,0)
-        end
-    end
 end)
+
 
 
 -- 안티 그렙 토글 플래그
