@@ -56,7 +56,6 @@ PlayerTab:CreateSlider({
     CurrentValue = walkSpeedValue,
     Callback = function(value)
         walkSpeedValue = value
-        -- 현재 캐릭터 humanoid 즉시 적용
         local char = localPlayer.Character
         if char then
             local humanoid = char:FindFirstChildOfClass("Humanoid")
@@ -98,14 +97,15 @@ uis.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- 캐릭터 리스폰 시에도 걷기 속도와 노클립 적용
+-- 캐릭터 초기화 함수 (걷기 속도 + 노클립 적용)
 local function setupCharacter(char)
     -- 걷기 속도
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = walkSpeedValue
     end
-    -- 노클립
+
+    -- 노클립 초기 상태 적용
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
             part.CanCollide = not noclipEnabled
@@ -113,29 +113,44 @@ local function setupCharacter(char)
     end
 end
 
+-- 캐릭터 초기 적용
 if localPlayer.Character then
     setupCharacter(localPlayer.Character)
 end
 
+-- 캐릭터 리스폰 시 적용
 localPlayer.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
 
--- Heartbeat에서 걷기 속도 유지 + 노클립 적용
+-- Heartbeat 루프에서 걷기 속도 유지 + 안전 노클립
 runService.Heartbeat:Connect(function()
     local char = localPlayer.Character
     if not char then return end
 
-    -- 걷기 속도
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = walkSpeedValue
     end
 
-    -- 노클립
+    local hrp = char:FindFirstChild("HumanoidRootPart")
     for _, part in ipairs(char:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.CanCollide = not noclipEnabled
+            if noclipEnabled then
+                part.CanCollide = false
+            else
+                part.CanCollide = true
+            end
+        end
+    end
+
+    -- 노클립 끈 직후 날아다니는 현상 최소화
+    if not noclipEnabled and hrp then
+        local ray = Ray.new(hrp.Position, Vector3.new(0,-5,0))
+        local hit = workspace:FindPartOnRay(ray, char)
+        if not hit then
+            -- 바닥이 없으면 살짝 아래로 이동
+            hrp.CFrame = hrp.CFrame + Vector3.new(0,-0.1,0)
         end
     end
 end)
