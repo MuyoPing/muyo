@@ -39,6 +39,58 @@ local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 -- 보호 탭 생성
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
+-- 안티 그렙 토글 플래그
+local antiGrabEnabled = false
+local antiGrabConnection = nil
+
+-- 래그돌 함수
+local function setRagdollF(state)
+    local char = plr.Character
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if char and hrp then
+        rs:WaitForChild("CharacterEvents"):WaitForChild("RagdollRemote"):FireServer(hrp, state and 1 or 0)
+    end
+end
+
+ProtectionTab:CreateToggle({
+    Name = "안티 그렙",
+    CurrentValue = false,
+    Callback = function(Value)
+        antiGrabEnabled = Value
+
+        -- 켜기
+        if antiGrabEnabled then
+            local rs = game:GetService("ReplicatedStorage")
+            local plr = game.Players.LocalPlayer
+
+            antiGrabConnection = runService.Heartbeat:Connect(function()
+                -- Struggle 호출 (계속 탈출 신호 보내기)
+                rs.CharacterEvents.Struggle:FireServer(plr)
+
+                -- Player 안의 IsHeld 확인
+                local heldValue = plr:FindFirstChild("IsHeld")
+                if heldValue and heldValue.Value == true then
+                    -- 잡혔을 때 → 레그돌 켜기
+                    setRagdollF(true)
+                else
+                    -- 풀렸을 때 → 레그돌 끄기
+                    setRagdollF(false)
+                end
+            end)
+
+        -- 끄기
+        else
+            if antiGrabConnection then
+                antiGrabConnection:Disconnect()
+                antiGrabConnection = nil
+            end
+            -- 혹시 꺼진 상태에서 레그돌이 켜져 있으면 해제
+            setRagdollF(false)
+        end
+    end
+})
+
+
 -- 📌 그렙 탭 생성
 local GrapTab = Window:CreateTab("그렙", 4483362458)
 local RunService = game:GetService("RunService")
@@ -277,71 +329,6 @@ runService.Heartbeat:Connect(function()
         humanoid.WalkSpeed = walkSpeedValue
     end
 end)
-
-
-
--- 안티 그렙 토글 플래그
-local antiGrabEnabled = false
-local antiGrabConnection = nil
-
-ProtectionTab:CreateToggle({
-    Name = "안티 그렙",
-    CurrentValue = false,
-    Callback = function(Value)
-        antiGrabEnabled = Value
-
-        -- 켜기
-        if antiGrabEnabled then
-            local rs = game:GetService("ReplicatedStorage")
-            local plr = game.Players.LocalPlayer
-            local character = plr.Character or plr.CharacterAdded:Wait()
-            local torso = character:FindFirstChild("HumanoidRootPart") 
-                          or character:FindFirstChild("Torso") 
-                          or character:FindFirstChild("UpperTorso")
-            local isAnchored = false
-
-            antiGrabConnection = runService.Heartbeat:Connect(function()
-                -- Struggle 호출
-                rs.CharacterEvents.Struggle:FireServer(plr)
-                
-                -- Player 안의 IsHeld 확인
-                local heldValue = plr:FindFirstChild("IsHeld")
-                if heldValue and heldValue.Value == true then
-                    if not isAnchored then
-                        if torso then
-                            torso.Anchored = true
-                            isAnchored = true
-                        end
-                    end
-                else
-                    if isAnchored then
-                        if torso then
-                            torso.Anchored = false
-                            isAnchored = false
-                        end
-                    end
-                end
-            end)
-
-        -- 끄기
-        else
-            if antiGrabConnection then
-                antiGrabConnection:Disconnect()
-                antiGrabConnection = nil
-            end
-            -- 혹시 고정돼있으면 풀기
-            local char = game.Players.LocalPlayer.Character
-            if char then
-                local torso = char:FindFirstChild("HumanoidRootPart") 
-                              or char:FindFirstChild("Torso") 
-                              or char:FindFirstChild("UpperTorso")
-                if torso then
-                    torso.Anchored = false
-                end
-            end
-        end
-    end
-})
 
 -- 📌 텔레포트 탭 생성
 local TeleportTab = Window:CreateTab("텔레포트", 4483362458)
