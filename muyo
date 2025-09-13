@@ -43,23 +43,23 @@ local ProtectionTab = Window:CreateTab("보호", 4483362458)
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
 local localPlayer = game.Players.LocalPlayer
 
+-- 상태 변수
+local infiniteJumpEnabled = false
+local noclipEnabled = false
+local walkSpeedValue = 16 -- 기본 걷기 속도
+
 -- 걷기 속도 슬라이더
-local walkSpeedSlider = PlayerTab:CreateSlider({
+PlayerTab:CreateSlider({
     Name = "걷기 속도",
     Range = {16,500},
     Increment = 1,
-    CurrentValue = 16,
+    CurrentValue = walkSpeedValue,
     Callback = function(value)
-        local char = localPlayer.Character
-        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
-        if humanoid then
-            humanoid.WalkSpeed = value
-        end
+        walkSpeedValue = value
     end
 })
 
--- 무한 점프 토글
-local infiniteJumpEnabled = false
+-- 무한 점프 토글 (Space 키)
 PlayerTab:CreateToggle({
     Name = "무한 점프",
     CurrentValue = false,
@@ -69,7 +69,6 @@ PlayerTab:CreateToggle({
 })
 
 -- 노클립 토글
-local noclipEnabled = false
 PlayerTab:CreateToggle({
     Name = "노클립",
     CurrentValue = false,
@@ -78,32 +77,40 @@ PlayerTab:CreateToggle({
     end
 })
 
--- 무한 점프: Space 키 입력 기반
+-- 무한 점프 구현
 game:GetService("UserInputService").InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode.Space and infiniteJumpEnabled then
         local char = localPlayer.Character
         local humanoid = char and char:FindFirstChildOfClass("Humanoid")
         if humanoid then
-            -- 점프 가능 여부와 상관없이 강제로 점프 상태로 변경
             humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
         end
     end
 end)
 
--- Heartbeat 루프에서 노클립 적용
+-- Heartbeat 루프에서 걷기 속도와 노클립 적용
 runService.Heartbeat:Connect(function()
     local char = localPlayer.Character
     if not char then return end
-    if noclipEnabled then
-        for _, part in ipairs(char:GetDescendants()) do
-            if part:IsA("BasePart") then
+
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        -- 걷기 속도 항상 적용
+        humanoid.WalkSpeed = walkSpeedValue
+    end
+
+    -- 노클립 처리
+    for _, part in ipairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            if noclipEnabled then
                 part.CanCollide = false
+            else
+                part.CanCollide = true
             end
         end
     end
 end)
-
 
 -- 안티 그렙 토글 플래그
 local antiGrabEnabled = false
