@@ -27,7 +27,7 @@ local uDistance = 50
 -- Rayfield UI 생성
 local Window = Rayfield:CreateWindow({
     Name = "반물사 스크립트",
-    LoadingTitle = "무요핑",
+    LoadingTitle = "반물사",
     LoadingSubtitle = "by 무요핑",
     ConfigurationSaving = { Enabled = false }
 })
