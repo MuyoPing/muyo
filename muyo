@@ -329,7 +329,8 @@ HelpTab:CreateLabel("U모드 → 보호막 모드 (슬라이더로 반지름 조
 HelpTab:CreateLabel("마우스 휠 → y키 거리 조절 / U 모드 반지름 조절")
 HelpTab:CreateLabel("v키/버튼 → 모든 블록 해제")
 HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
-HelpTab:CreateLabel("m키 → UI 토글")
+HelpTab:CreateLabel("k키 → UI 가리기 켜기")
+HelpTab:CreateLabel("속도 조절 앉으면 됨")
 
 -- 기능 함수들
 local function registerBlock(block)
