@@ -41,6 +41,9 @@ local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
 -- 📌 그렙 탭 생성
 local GrapTab = Window:CreateTab("그렙", 4483362458)
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
 
 -- 상태 변수
 local noclipTargetEnabled = false
@@ -48,7 +51,7 @@ local grabbedPartsOriginal = {}
 
 -- 내 캐릭터 파츠 제외
 local function getMyParts()
-    local char = game.Players.LocalPlayer.Character
+    local char = localPlayer.Character
     if not char then return {} end
     local parts = {}
     for _, p in ipairs(char:GetDescendants()) do
@@ -67,33 +70,12 @@ local function getGrabbedParts()
         if part:IsA("BasePart") and not myParts[part] then
             local owner = nil
             pcall(function() owner = part:GetNetworkOwner() end)
-            if owner == game.Players.LocalPlayer then
+            if owner == localPlayer then
                 table.insert(owned, part)
             end
         end
     end
     return owned
-end
-
--- 노클립 켜기
-local function enableGrabbedNoclip()
-    local parts = getGrabbedParts()
-    for _, p in ipairs(parts) do
-        if grabbedPartsOriginal[p] == nil then
-            grabbedPartsOriginal[p] = p.CanCollide
-        end
-        p.CanCollide = false
-    end
-end
-
--- 노클립 끄기
-local function disableGrabbedNoclip()
-    for p, val in pairs(grabbedPartsOriginal) do
-        if p and p.Parent then
-            p.CanCollide = val
-        end
-    end
-    grabbedPartsOriginal = {}
 end
 
 -- 토글 UI
@@ -102,13 +84,38 @@ GrapTab:CreateToggle({
     CurrentValue = false,
     Callback = function(value)
         noclipTargetEnabled = value
-        if value then
-            enableGrabbedNoclip()
-        else
-            disableGrabbedNoclip()
+        if not value then
+            -- 끄면 기존 저장값 복구
+            for p, val in pairs(grabbedPartsOriginal) do
+                if p and p.Parent then
+                    p.CanCollide = val
+                end
+            end
+            grabbedPartsOriginal = {}
         end
     end
 })
+
+-- Heartbeat 루프: 토글 켜져 있으면 자동 노클립 유지
+RunService.Heartbeat:Connect(function()
+    if noclipTargetEnabled then
+        local grabbed = getGrabbedParts()
+        -- 새로 잡은 파츠 적용
+        for _, p in ipairs(grabbed) do
+            if grabbedPartsOriginal[p] == nil then
+                grabbedPartsOriginal[p] = p.CanCollide
+            end
+            p.CanCollide = false
+        end
+        -- 놓은 파츠 복구
+        for p, _ in pairs(grabbedPartsOriginal) do
+            if not table.find(grabbed, p) and p and p.Parent then
+                p.CanCollide = grabbedPartsOriginal[p]
+                grabbedPartsOriginal[p] = nil
+            end
+        end
+    end
+end)
 
 -- 📌 플레이어 탭 생성
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
