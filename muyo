@@ -39,6 +39,69 @@ local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 -- 보호 탭 생성
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
+-- 📌 플레이어 탭 생성
+local PlayerTab = Window:CreateTab("플레이어", 4483362458)
+local localPlayer = game.Players.LocalPlayer
+local char = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+local hrp = char:WaitForChild("HumanoidRootPart")
+local humanoid = char:FindFirstChildOfClass("Humanoid")
+
+-- 걷기 속도 슬라이더
+PlayerTab:CreateSlider({
+    Name = "걷기 속도",
+    Range = {16, 500}, -- 기본 속도 16 ~ 최대 500
+    Increment = 1,
+    CurrentValue = humanoid.WalkSpeed,
+    Callback = function(value)
+        if humanoid then
+            humanoid.WalkSpeed = value
+        end
+    end
+})
+
+-- 무한 점프 토글
+local infiniteJumpEnabled = false
+PlayerTab:CreateToggle({
+    Name = "무한 점프",
+    CurrentValue = false,
+    Callback = function(value)
+        infiniteJumpEnabled = value
+    end
+})
+
+-- 노클립 토글
+local noclipEnabled = false
+PlayerTab:CreateToggle({
+    Name = "노클립",
+    CurrentValue = false,
+    Callback = function(value)
+        noclipEnabled = value
+    end
+})
+
+-- Heartbeat에 연결하여 무한 점프 및 노클립 적용
+runService.Heartbeat:Connect(function()
+    char = localPlayer.Character
+    humanoid = char and char:FindFirstChildOfClass("Humanoid")
+    hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not humanoid or not hrp then return end
+
+    -- 무한 점프
+    if infiniteJumpEnabled then
+        humanoid.JumpPower = 50
+        humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+    end
+
+    -- 노클립
+    if noclipEnabled then
+        for _, part in ipairs(char:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = false
+            end
+        end
+    end
+end)
+
 -- 안티 그렙 토글 플래그
 local antiGrabEnabled = false
 local antiGrabConnection = nil
