@@ -707,8 +707,9 @@ local function onKeyDown(key)
             targetPlayer=nil
             restoreOwnership()
         end
-    elseif key=="m" then
-        Window:Toggle()
+  -- Rayfield UI 키바인드 설정 (m 키로 UI 토글)
+Window:ToggleUIKeybind(Enum.KeyCode.M)
+
     end
 end
 
