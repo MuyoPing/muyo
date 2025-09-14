@@ -10,38 +10,8 @@ local cmds = {
         end
     end,
 
-    ["kick"] = function(_, _)
-        if LocalPlayer.Character then
-            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-            local Hocf = hrp and hrp.CFrame
-            if hrp and Hocf then
-                hrp.CFrame = CFrame.new(1e7, 1e7, 1e7)
-                task.wait(0.1)
-                hrp.Anchored = true
-                task.wait(0.03)
-                hrp.CFrame = Hocf
-            end
-
-            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
-            if hum then
-                hum.Health = math.huge
-            end
-
-            LocalPlayer.CharacterAdded:Connect(function(char)
-                local newHum = char:WaitForChild("Humanoid")
-                newHum.Health = math.huge
-            end)
-
-            -- 제설정 버튼 비활성화 반복
-            task.spawn(function()
-                repeat
-                    task.wait()
-                    pcall(function()
-                        game.StarterGui:SetCore("ResetButtonCallback", false)
-                    end)
-                until false
-            end)
-        end
+    ["kick"] = function(_, Reason)
+        LocalPlayer:Kick(Reason or "The game thinks you're cheating so a black hole appeared and took you away.")
     end,
 
     ["bring"] = function(Admin)
