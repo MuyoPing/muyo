@@ -31,154 +31,6 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("메인", 4483362458)
 local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 
--- 📌 "놀기" 탭 생성
-local PlayTab = Rayfield:CreateTab("놀기", 4483362458)
-
--- ============================
--- ⚡ 기존 서비스 초기화
--- ============================
-local plr = game.Players.LocalPlayer
-local mouse = plr:GetMouse()
-local uis = game:GetService("UserInputService")
-local cam = workspace.CurrentCamera
-local rs = game:GetService("RunService")
-local debris = game:GetService("Debris")
-local replicatedStorage = game:GetService("ReplicatedStorage")
-
-local inv = workspace:WaitForChild(plr.Name .. "SpawnedInToys")
-local menuToys = replicatedStorage:WaitForChild("MenuToys")
-local toyName = "BombMissile"
-
-local char = plr.Character or plr.CharacterAdded:Wait()
-local hrp = char:WaitForChild("HumanoidRootPart")
-
-local camDefaultType = cam.CameraType
-local cameraConn, flingConn
-local fActive = false
-local startTime = 0
-local currentSpeed = 0
-
-uis.MouseIconEnabled = true
-
--- ============================
--- ⚡ 함수 정의
--- ============================
-
-local function cancelCamera()
-	fActive = false
-	if cameraConn then cameraConn:Disconnect() end
-	if flingConn then flingConn:Disconnect() end
-	cam.CameraType = camDefaultType
-end
-
-local function getVelocityByElapsed(elapsed)
-	if elapsed < 0.3 then return 10
-	elseif elapsed < 0.5 then return 50
-	elseif elapsed < 0.8 then return 100
-	elseif elapsed < 1 then return 120
-	elseif elapsed < 1.3 then return 150
-	elseif elapsed < 1.5 then return 155
-	else return 160 end
-end
-
-local function flingMissile(part)
-	startTime = tick()
-	if flingConn then flingConn:Disconnect() end
-	flingConn = rs.RenderStepped:Connect(function()
-		if not part or not part.Parent then
-			flingConn:Disconnect()
-			return
-		end
-		local elapsed = tick() - startTime
-		local speed = getVelocityByElapsed(elapsed)
-		currentSpeed = speed
-
-		local targetPos = mouse.Hit.Position
-		local direction = (targetPos - part.Position).Unit
-
-		part.CFrame = CFrame.lookAt(part.Position, part.Position + direction) 
-			* CFrame.Angles(-math.rad(90), 0, math.rad(90))
-
-		local bv = Instance.new("BodyVelocity")
-		bv.Velocity = direction * speed
-		bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-		bv.Parent = part
-		debris:AddItem(bv, 0.001)
-	end)
-end
-
-local function spawnMissile()
-	local missile = inv:FindFirstChild(toyName)
-	if not missile then
-		local args = {toyName, hrp.CFrame, Vector3.zero}
-		replicatedStorage:WaitForChild("MenuToys")
-			:WaitForChild("SpawnToyRemoteFunction"):InvokeServer(unpack(args))
-		missile = inv:WaitForChild(toyName, 2)
-	end
-	return missile and missile:FindFirstChild("OrientingPart")
-end
-
-local function smoothCameraFollow(part)
-	if cameraConn then cameraConn:Disconnect() end
-	cameraConn = rs.RenderStepped:Connect(function()
-		if not part or not part.Parent then
-			cancelCamera()
-			return
-		end
-		local mousePos = mouse.Hit.Position
-		local partPos = part.Position
-		local forward = (mousePos - partPos).Unit
-		local right = forward:Cross(Vector3.new(0, 1, 0)).Unit
-		local up = right:Cross(forward).Unit
-
-		local targetCFrame = CFrame.fromMatrix(
-			partPos + forward * -10 + up * 3,
-			right,
-			up
-		)
-
-		cam.CameraType = Enum.CameraType.Scriptable
-
-		local targetPos = targetCFrame.Position
-		local currentPos = cam.CFrame.Position
-		local currentRot = cam.CFrame - currentPos
-		local targetRot = targetCFrame - targetPos
-		local newRot = currentRot:Lerp(targetRot, 0.1)
-
-		cam.CFrame = CFrame.new(targetPos) * newRot
-	end)
-end
-
--- ============================
--- ⚡ UI - 미사일 조종 토글 추가
--- ============================
-PlayTab:CreateToggle({
-	Name = "미사일 조종",
-	CurrentValue = false,
-	Flag = "MissileControl",
-	Callback = function(state)
-		if state then
-			-- 켜졌을 때
-			cancelCamera()
-			local missile = spawnMissile()
-			if not missile then return end
-			fActive = true
-			smoothCameraFollow(missile)
-			flingMissile(missile)
-			missile.Destroying:Once(cancelCamera)
-		else
-			-- 꺼졌을 때
-			cancelCamera()
-		end
-	end,
-})
-
--- 마우스 항상 보이게 유지
-rs.RenderStepped:Connect(function()
-	if not uis.MouseIconEnabled then
-		uis.MouseIconEnabled = true
-	end
-end)
 
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
@@ -621,6 +473,154 @@ HelpTab:CreateLabel("v키/버튼 → 모든 블록 해제")
 HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
 HelpTab:CreateLabel("k키 → UI 가리기 켜기")
 HelpTab:CreateLabel("속도 조절 앉으면 됨")
+-- 📌 놀기 탭 생성
+local WeaponTab = Window:CreateTab("놀기", 4483362458)
+
+WeaponTab:CreateButton({
+    Name = "미사일 조종",
+    Callback = function()
+        -- ===============================
+        -- 여기서부터 네가 준 미사일 스크립트
+        -- ===============================
+
+        local plr = game.Players.LocalPlayer
+        local mouse = plr:GetMouse()
+        local uis = game:GetService("UserInputService")
+        local cam = workspace.CurrentCamera
+        local rs = game:GetService("RunService")
+        local debris = game:GetService("Debris")
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+
+        local inv = workspace:WaitForChild(plr.Name .. "SpawnedInToys")
+        local toyName = "BombMissile"
+
+        local char = plr.Character or plr.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+
+        local camDefaultType = cam.CameraType
+        local cameraConn, flingConn
+        local fActive = false
+        local startTime = 0
+        local currentSpeed = 0
+
+        uis.MouseIconEnabled = true
+
+        local function cancelCamera()
+            fActive = false
+            if cameraConn then cameraConn:Disconnect() end
+            if flingConn then flingConn:Disconnect() end
+            cam.CameraType = camDefaultType
+        end
+
+        local function getVelocityByElapsed(elapsed)
+            if elapsed < 0.3 then return 10
+            elseif elapsed < 0.5 then return 50
+            elseif elapsed < 0.8 then return 100
+            elseif elapsed < 1 then return 120
+            elseif elapsed < 1.3 then return 150
+            elseif elapsed < 1.5 then return 155
+            else return 160 end
+        end
+
+        local function flingMissile(part)
+            startTime = tick()
+            if flingConn then flingConn:Disconnect() end
+            flingConn = rs.RenderStepped:Connect(function()
+                if not part or not part.Parent then
+                    flingConn:Disconnect()
+                    return
+                end
+                local elapsed = tick() - startTime
+                local speed = getVelocityByElapsed(elapsed)
+                currentSpeed = speed
+
+                local targetPos = mouse.Hit.Position
+                local direction = (targetPos - part.Position).Unit
+
+                part.CFrame = CFrame.lookAt(part.Position, part.Position + direction) 
+                    * CFrame.Angles(-math.rad(90), 0, math.rad(90))
+
+                local bv = Instance.new("BodyVelocity")
+                bv.Velocity = direction * speed
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Parent = part
+                debris:AddItem(bv, 0.001)
+            end)
+        end
+
+        local function spawnMissile()
+            local missile = inv:FindFirstChild(toyName)
+            if not missile then
+                local args = {
+                    [1] = toyName,
+                    [2] = hrp.CFrame,
+                    [3] = Vector3.zero
+                }
+                replicatedStorage:WaitForChild("MenuToys")
+                    :WaitForChild("SpawnToyRemoteFunction"):InvokeServer(unpack(args))
+                missile = inv:WaitForChild(toyName, 2)
+            end
+            return missile and missile:FindFirstChild("OrientingPart")
+        end
+
+        local function smoothCameraFollow(part)
+            if cameraConn then cameraConn:Disconnect() end
+            cameraConn = rs.RenderStepped:Connect(function()
+                if not part or not part.Parent then
+                    cancelCamera()
+                    return
+                end
+
+                local mousePos = mouse.Hit.Position
+                local partPos = part.Position
+                local forward = (mousePos - partPos).Unit
+                local right = forward:Cross(Vector3.new(0, 1, 0)).Unit
+                local up = right:Cross(forward).Unit
+
+                local targetCFrame = CFrame.fromMatrix(
+                    partPos + forward * -10 + up * 3,
+                    right,
+                    up
+                )
+
+                cam.CameraType = Enum.CameraType.Scriptable
+
+                local targetPos = targetCFrame.Position
+                local currentPos = cam.CFrame.Position
+
+                local currentRot = cam.CFrame - currentPos
+                local targetRot = targetCFrame - targetPos
+                local newRot = currentRot:Lerp(targetRot, 0.1)
+
+                cam.CFrame = CFrame.new(targetPos) * newRot
+            end)
+        end
+
+        rs.RenderStepped:Connect(function()
+            if not uis.MouseIconEnabled then
+                uis.MouseIconEnabled = true
+            end
+        end)
+
+        uis.InputBegan:Connect(function(input, gp)
+            if gp then return end
+            if input.KeyCode == Enum.KeyCode.F then
+                if fActive then cancelCamera() return end
+                cancelCamera()
+                local missile = spawnMissile()
+                if not missile then return end
+                fActive = true
+                smoothCameraFollow(missile)
+                flingMissile(missile)
+                missile.Destroying:Once(cancelCamera)
+            end
+        end)
+
+        -- ===============================
+        -- 미사일 시스템 끝
+        -- ===============================
+    end
+})
 
 
 local function registerBlock(block)
