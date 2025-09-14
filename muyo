@@ -1,12 +1,10 @@
 --!strict
 
--- Rayfield UI 로드
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 local player = game.Players.LocalPlayer
 local mouse = player:GetMouse()
 local runService = game:GetService("RunService")
 
--- 블록 관리
 local registeredBlocks = {}
 local spawnMode = false
 local followPointMode = false
@@ -20,11 +18,9 @@ local angleOffset = 0
 local targetPlayer = nil
 local followDistance = 50
 
--- 보호막 모드
 local uMode = false
 local uDistance = 50
 
--- Rayfield UI 생성
 local Window = Rayfield:CreateWindow({
     Name = "반물사 스크립트",
     LoadingTitle = "반물사",
@@ -32,19 +28,15 @@ local Window = Rayfield:CreateWindow({
     ConfigurationSaving = { Enabled = false }
 })
 
--- 메인 탭
 local MainTab = Window:CreateTab("메인", 4483362458)
 local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 
--- 보호 탭 생성
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
--- 안티 그렙 상태 플래그
 local antiGrabEnabled = false
 local antiGrabConnection = nil
 local struggleConnection = nil
 
--- 레그돌 함수
 local function setRagdollF(state)
     local rs = game:GetService("ReplicatedStorage")
     local plr = game.Players.LocalPlayer
@@ -55,7 +47,6 @@ local function setRagdollF(state)
     end
 end
 
--- 앵커 함수
 local function setAnchorF(state)
     local plr = game.Players.LocalPlayer
     local char = plr.Character or plr.CharacterAdded:Wait()
@@ -65,14 +56,12 @@ local function setAnchorF(state)
     end
 end
 
--- 안티 그렙 토글
 ProtectionTab:CreateToggle({
     Name = "안티 그렙",
     CurrentValue = false,
     Callback = function(Value)
         antiGrabEnabled = Value
 
-        -- 켜기
         if antiGrabEnabled then
             local rs = game:GetService("ReplicatedStorage")
             local plr = game.Players.LocalPlayer
@@ -83,29 +72,28 @@ ProtectionTab:CreateToggle({
 
                 if heldValue and heldValue.Value == true then
                     if not struggleConnection then
-                        -- 잡힘 → 레그돌 & 앵커 ON
+
                         setRagdollF(true)
                         setAnchorF(true)
 
-                        -- 잡힌 동안 Struggle 반복 호출
                         struggleConnection = runService.Heartbeat:Connect(function()
                             rs.CharacterEvents.Struggle:FireServer(plr)
                         end)
                     end
                 else
                     if struggleConnection then
-                        -- 풀림 → 레그돌 & 앵커 OFF
+
                         setRagdollF(false)
                         setAnchorF(false)
 
-                        -- Struggle 중지
+
                         struggleConnection:Disconnect()
                         struggleConnection = nil
                     end
                 end
             end)
 
-        -- 끄기
+
         else
             if antiGrabConnection then
                 antiGrabConnection:Disconnect()
@@ -116,7 +104,7 @@ ProtectionTab:CreateToggle({
                 struggleConnection = nil
             end
 
-            -- 혹시 켜져 있으면 풀기
+
             setRagdollF(false)
             setAnchorF(false)
         end
@@ -124,17 +112,14 @@ ProtectionTab:CreateToggle({
 })
 
 
--- 📌 그렙 탭 생성
 local GrapTab = Window:CreateTab("그렙", 4483362458)
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
--- 상태 변수
 local noclipTargetEnabled = false
 local grabbedPartsOriginal = {}
 
--- 내 캐릭터 파츠 제외
 local function getMyParts()
     local char = localPlayer.Character
     if not char then return {} end
@@ -147,7 +132,6 @@ local function getMyParts()
     return parts
 end
 
--- 잡은 오브젝트 파츠 가져오기 (내 캐릭터 제외)
 local function getGrabbedParts()
     local owned = {}
     local myParts = getMyParts()
@@ -163,14 +147,13 @@ local function getGrabbedParts()
     return owned
 end
 
--- 토글 UI
 GrapTab:CreateToggle({
     Name = "노클립 그렙",
     CurrentValue = false,
     Callback = function(value)
         noclipTargetEnabled = value
         if not value then
-            -- 끄면 기존 저장값 복구
+
             for p, val in pairs(grabbedPartsOriginal) do
                 if p and p.Parent then
                     p.CanCollide = val
@@ -181,18 +164,17 @@ GrapTab:CreateToggle({
     end
 })
 
--- Heartbeat 루프: 토글 켜져 있으면 자동 노클립 유지
 RunService.Heartbeat:Connect(function()
     if noclipTargetEnabled then
         local grabbed = getGrabbedParts()
-        -- 새로 잡은 파츠 적용
+
         for _, p in ipairs(grabbed) do
             if grabbedPartsOriginal[p] == nil then
                 grabbedPartsOriginal[p] = p.CanCollide
             end
             p.CanCollide = false
         end
-        -- 놓은 파츠 복구
+
         for p, _ in pairs(grabbedPartsOriginal) do
             if not table.find(grabbed, p) and p and p.Parent then
                 p.CanCollide = grabbedPartsOriginal[p]
@@ -202,22 +184,22 @@ RunService.Heartbeat:Connect(function()
     end
 end)
 
--- 📌 플레이어 탭 생성
+
 local PlayerTab = Window:CreateTab("플레이어", 4483362458)
 local localPlayer = game.Players.LocalPlayer
 local runService = game:GetService("RunService")
 
--- 상태 변수
-local walkSpeedValue = 16 -- 기본 속도
+
+local walkSpeedValue = 16
 local infiniteJumpEnabled = false
 local noclipEnabled = false
 
--- 🟢 노클립 관련 변수
+
 local steppedConnection = nil
 local originalCanCollide = {}
 local PART_NAMES = {"Head","Torso","UpperTorso","LowerTorso","HumanoidRootPart"}
 
--- 🟢 캐릭터 파츠 모으기
+
 local function getCharacterParts(char)
     local parts = {}
     for _, name in ipairs(PART_NAMES) do
@@ -229,13 +211,13 @@ local function getCharacterParts(char)
     return parts
 end
 
--- 🟢 노클립 켜기
+
 local function enableNoclip(char)
     char = char or localPlayer.Character or localPlayer.CharacterAdded:Wait()
     if noclipEnabled then return end
     local parts = getCharacterParts(char)
 
-    -- 원래값 저장
+
     originalCanCollide = {}
     for _, p in ipairs(parts) do
         originalCanCollide[p] = p.CanCollide
@@ -253,7 +235,7 @@ local function enableNoclip(char)
     warn("[noclip] enabled")
 end
 
--- 🟢 노클립 끄기
+
 local function disableNoclip(char)
     char = char or localPlayer.Character
     if not noclipEnabled then return end
@@ -263,7 +245,7 @@ local function disableNoclip(char)
         steppedConnection = nil
     end
 
-    -- 복구
+
     if char then
         for p, val in pairs(originalCanCollide) do
             if p and p.Parent then
@@ -277,7 +259,7 @@ local function disableNoclip(char)
     warn("[noclip] disabled")
 end
 
--- 걷기 속도 슬라이더
+
 PlayerTab:CreateSlider({
     Name = "걷기 속도",
     Range = {16,500},
@@ -295,7 +277,7 @@ PlayerTab:CreateSlider({
     end
 })
 
--- 무한 점프 토글
+
 PlayerTab:CreateToggle({
     Name = "무한 점프",
     CurrentValue = false,
@@ -304,7 +286,7 @@ PlayerTab:CreateToggle({
     end
 })
 
--- 🟢 노클립 토글 (버튼 유지)
+
 PlayerTab:CreateToggle({
     Name = "노클립",
     CurrentValue = false,
@@ -317,7 +299,7 @@ PlayerTab:CreateToggle({
     end
 })
 
--- 무한 점프 구현 (Space 키 입력)
+
 local uis = game:GetService("UserInputService")
 uis.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
@@ -330,30 +312,30 @@ uis.InputBegan:Connect(function(input, gameProcessed)
     end
 end)
 
--- 캐릭터 초기화 (걷기 속도 적용)
+
 local function setupCharacter(char)
     local humanoid = char:FindFirstChildOfClass("Humanoid")
     if humanoid then
         humanoid.WalkSpeed = walkSpeedValue
     end
 
-    -- 만약 리스폰했는데 노클립이 켜져있으면 다시 적용
+
     if noclipEnabled then
         enableNoclip(char)
     end
 end
 
--- 캐릭터 초기 적용
+
 if localPlayer.Character then
     setupCharacter(localPlayer.Character)
 end
 
--- 캐릭터 리스폰 시 적용
+
 localPlayer.CharacterAdded:Connect(function(char)
     setupCharacter(char)
 end)
 
--- Heartbeat 루프: 걷기 속도 유지
+
 runService.Heartbeat:Connect(function()
     local char = localPlayer.Character
     if not char then return end
@@ -363,12 +345,12 @@ runService.Heartbeat:Connect(function()
     end
 end)
 
--- 📌 텔레포트 탭 생성
+
 local TeleportTab = Window:CreateTab("텔레포트", 4483362458)
 local player = game.Players.LocalPlayer
 local runService = game:GetService("RunService")
 
--- 스폰 구역 텔레포트 버튼
+
 TeleportTab:CreateButton({
     Name = "스폰 구역으로 이동",
     Callback = function()
@@ -385,7 +367,7 @@ TeleportTab:CreateButton({
     end
 })
 
--- 플레이어 목록 준비 (표시닉 + 본닉)
+
 local function getPlayerList()
     local list = {}
     for _, plr in ipairs(game.Players:GetPlayers()) do
@@ -398,7 +380,7 @@ end
 
 local SelectedPlayer = nil
 
--- 드롭다운
+
 local PlayerDropdown = TeleportTab:CreateDropdown({
     Name = "플레이어 선택",
     Options = getPlayerList(),
@@ -422,11 +404,11 @@ local PlayerDropdown = TeleportTab:CreateDropdown({
     end
 })
 
--- 플레이어 목록 새로고침 버튼
+
 TeleportTab:CreateButton({
     Name = "플레이어 목록 새로고침",
     Callback = function()
-        -- 최신 플레이어 목록 가져오기
+
         local refreshedList = {}
         for _, plr in ipairs(game.Players:GetPlayers()) do
             if plr ~= player then
@@ -434,7 +416,7 @@ TeleportTab:CreateButton({
             end
         end
 
-        -- 드롭다운 옵션 완전히 새로 적용
+
         PlayerDropdown:Refresh(refreshedList, true)
         PlayerDropdown:SetOption("") -- 선택 초기화
         SelectedPlayer = nil
@@ -447,7 +429,7 @@ TeleportTab:CreateButton({
     end
 })
 
--- 선택된 플레이어에게 텔레포트 버튼
+
 TeleportTab:CreateButton({
     Name = "선택한 플레이어한테 텔레포트",
     Callback = function()
@@ -456,7 +438,7 @@ TeleportTab:CreateButton({
             local myChar = player.Character or player.CharacterAdded:Wait()
             local myHRP = myChar:WaitForChild("HumanoidRootPart")
 
-            -- 네트워크 오너권 가져오기 시도 (가능한 게임에서만)
+
             pcall(function()
                 targetHRP:SetNetworkOwner(player)
             end)
@@ -478,7 +460,7 @@ TeleportTab:CreateButton({
     end
 })
 
--- 사용법 탭
+
 local HelpTab = Window:CreateTab("사용법", 4483362458)
 HelpTab:CreateLabel("t키/버튼 → 블록 등록")
 HelpTab:CreateLabel("y키 → 마우스 위치 따라가기 / 다시 y → 고정 위치")
@@ -491,7 +473,7 @@ HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
 HelpTab:CreateLabel("k키 → UI 가리기 켜기")
 HelpTab:CreateLabel("속도 조절 앉으면 됨")
 
--- 기능 함수들
+
 local function registerBlock(block)
     if block and block:IsA("BasePart") and not block.Anchored then
         registeredBlocks[block] = true
@@ -511,7 +493,7 @@ local function restoreOwnership()
     end
 end
 
--- 원형 회전
+
 local function updateCircularPlacement()
     local char = player.Character
     if not char or not char.PrimaryPart then return end
@@ -540,7 +522,7 @@ local function updateCircularPlacement()
     end
 end
 
--- 스폰 이동
+
 local function updateSpawnPlacement()
     local targetPos = spawnPos + Vector3.new(0,100,0)
     for block in pairs(registeredBlocks) do
@@ -550,7 +532,7 @@ local function updateSpawnPlacement()
     end
 end
 
--- 플레이어 추적
+
 local function updateTargetTracking()
     if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character.PrimaryPart then return end
 
@@ -562,7 +544,7 @@ local function updateTargetTracking()
     end
 end
 
--- 마우스 따라가기
+
 local function updateFollowPointPlacement()
     local char = player.Character
     if not char or not char.PrimaryPart then return end
@@ -585,7 +567,7 @@ local function updateFollowPointPlacement()
     end
 end
 
--- 자동 반구 보호막
+
 local function updateDomePlacement()
     local char = player.Character
     if not char or not char.PrimaryPart then return end
@@ -626,7 +608,7 @@ local function updateDomePlacement()
     end
 end
 
--- Rayfield 버튼
+
 MainTab:CreateButton({ Name="블록 등록 (마우스)", Callback=function()
     local target = mouse.Target
     registerBlock(target)
@@ -666,7 +648,7 @@ MainTab:CreateSlider({
     end
 })
 
--- 키다운 기능
+
 local function onKeyDown(key)
     if key=="t" then
         local target = mouse.Target
