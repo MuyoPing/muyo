@@ -474,15 +474,14 @@ HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
 HelpTab:CreateLabel("k키 → UI 가리기 켜기")
 HelpTab:CreateLabel("속도 조절 앉으면 됨")
 -- 📌 놀기 탭 생성
-local WeaponTab = Window:CreateTab("놀기", 4483362458)
+local WeaponTab = Window:CreateTab("무기", 4483362458)
 
 WeaponTab:CreateButton({
     Name = "미사일 조종",
     Callback = function()
         -- ===============================
-        -- 여기서부터 네가 준 미사일 스크립트
+        -- 미사일 시스템
         -- ===============================
-
         local plr = game.Players.LocalPlayer
         local mouse = plr:GetMouse()
         local uis = game:GetService("UserInputService")
@@ -493,25 +492,21 @@ WeaponTab:CreateButton({
 
         local inv = workspace:WaitForChild(plr.Name .. "SpawnedInToys")
         local toyName = "BombMissile"
-
         local char = plr.Character or plr.CharacterAdded:Wait()
         local hrp = char:WaitForChild("HumanoidRootPart")
 
         local camDefaultType = cam.CameraType
         local cameraConn, flingConn
-        local fActive = false
         local startTime = 0
-        local currentSpeed = 0
 
-        uis.MouseIconEnabled = true
-
+        -- 카메라 복구
         local function cancelCamera()
-            fActive = false
             if cameraConn then cameraConn:Disconnect() end
             if flingConn then flingConn:Disconnect() end
             cam.CameraType = camDefaultType
         end
 
+        -- 속도 계산
         local function getVelocityByElapsed(elapsed)
             if elapsed < 0.3 then return 10
             elseif elapsed < 0.5 then return 50
@@ -522,6 +517,7 @@ WeaponTab:CreateButton({
             else return 160 end
         end
 
+        -- 미사일 이동
         local function flingMissile(part)
             startTime = tick()
             if flingConn then flingConn:Disconnect() end
@@ -530,9 +526,9 @@ WeaponTab:CreateButton({
                     flingConn:Disconnect()
                     return
                 end
+
                 local elapsed = tick() - startTime
                 local speed = getVelocityByElapsed(elapsed)
-                currentSpeed = speed
 
                 local targetPos = mouse.Hit.Position
                 local direction = (targetPos - part.Position).Unit
@@ -548,6 +544,7 @@ WeaponTab:CreateButton({
             end)
         end
 
+        -- 미사일 생성
         local function spawnMissile()
             local missile = inv:FindFirstChild(toyName)
             if not missile then
@@ -563,6 +560,7 @@ WeaponTab:CreateButton({
             return missile and missile:FindFirstChild("OrientingPart")
         end
 
+        -- 카메라 따라가기
         local function smoothCameraFollow(part)
             if cameraConn then cameraConn:Disconnect() end
             cameraConn = rs.RenderStepped:Connect(function()
@@ -596,29 +594,13 @@ WeaponTab:CreateButton({
             end)
         end
 
-        rs.RenderStepped:Connect(function()
-            if not uis.MouseIconEnabled then
-                uis.MouseIconEnabled = true
-            end
-        end)
-
-        uis.InputBegan:Connect(function(input, gp)
-            if gp then return end
-            if input.KeyCode == Enum.KeyCode.F then
-                if fActive then cancelCamera() return end
-                cancelCamera()
-                local missile = spawnMissile()
-                if not missile then return end
-                fActive = true
-                smoothCameraFollow(missile)
-                flingMissile(missile)
-                missile.Destroying:Once(cancelCamera)
-            end
-        end)
-
-        -- ===============================
-        -- 미사일 시스템 끝
-        -- ===============================
+        -- 📌 버튼 클릭 시 동작
+        local missile = spawnMissile()
+        if missile then
+            smoothCameraFollow(missile)
+            flingMissile(missile)
+            missile.Destroying:Once(cancelCamera) -- 미사일 파괴 시 카메라 복구
+        end
     end
 })
 
