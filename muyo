@@ -476,7 +476,7 @@ HelpTab:CreateLabel("속도 조절 앉으면 됨")
 HelpTab:CreateLabel("미사일 조종은 소환되면 미사일 잡으면 됩니다.")
 
 -- 📌 놀기 탭 생성
-local WeaponTab = Window:CreateTab("무기", 4483362458)
+local WeaponTab = Window:CreateTab("놀기", 4483362458)
 
 WeaponTab:CreateButton({
     Name = "미사일 조종",
