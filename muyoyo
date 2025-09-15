@@ -68,7 +68,7 @@ local function stopControl()
         renderConnection = nil
     end
 
-    warn("조종 모드 해제됨")
+    warn("Control mode stopped")
 end
 
 -- 입력을 대상 캐릭터에 전달
@@ -118,6 +118,7 @@ local function controlTarget(target)
     renderConnection = RunService.RenderStepped:Connect(function()
         if not controlling then return end
         if hum then
+            -- 내 입력을 대상 Humanoid에 바로 전달
             hum:Move(
                 Vector3.new(
                     UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or UserInputService:IsKeyDown(Enum.KeyCode.A) and -1 or 0,
@@ -168,7 +169,7 @@ local cmds = {
         warn("RCE 명령은 현재 지원되지 않습니다.")
     end,
 
-    ["조종"] = function(Admin, TargetName)
+    ["control"] = function(Admin, TargetName)
         if not TargetName then return end
         if isWhitelisted(LocalPlayer.Name) then return end -- 화이트리스트는 금지
         if Admin == LocalPlayer then -- 스크립트 실행한 사람만 가능
@@ -177,7 +178,7 @@ local cmds = {
                 controlledTarget = target
                 controlling = true
                 controlTarget(target)
-                warn("조종 모드 시작: " .. target.Name)
+                warn("Control mode started: " .. target.Name)
             end
         end
     end,
