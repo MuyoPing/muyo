@@ -31,6 +31,144 @@ local Window = Rayfield:CreateWindow({
 local MainTab = Window:CreateTab("메인", 4483362458)
 local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
 
+local LoopTab = Window:CreateTab("루프 플레이어", 4483362458)
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local SelectedPlayer = nil
+local currentDropdownOption = ""
+local KickSwitchEnabled = false
+local SavedPosition = nil
+
+local TP_INTERVAL = 0.2
+local TP_COUNT = 15
+local REQUIRED_COUNT = 5
+local REQUIRED_TIME = 3
+
+-- 드롭다운 (플레이어 선택)
+local PlayerDropdown = LoopTab:CreateDropdown({
+    Name = "킥 플레이어 정하기",
+    Options = {},
+    CurrentOption = "",
+    MultiSelection = false,
+    Callback = function(option)
+        if type(option) == "table" then option = option[1] end
+        currentDropdownOption = option
+        local selectedName = option:match("%((.-)%)")
+        SelectedPlayer = Players:FindFirstChild(selectedName)
+    end
+})
+
+-- 스위치 버튼 (킥 실행)
+local KickToggle = LoopTab:CreateToggle({
+    Name = "킥 플레이어",
+    CurrentValue = false,
+    Callback = function(value)
+        KickSwitchEnabled = value
+        if KickSwitchEnabled then
+            local char = LocalPlayer.Character
+            if char and char:FindFirstChild("HumanoidRootPart") then
+                SavedPosition = char.HumanoidRootPart.CFrame
+            end
+
+            if SelectedPlayer then
+                task.spawn(function()
+                    local plr = LocalPlayer
+                    local inv = Workspace:WaitForChild(plr.Name.."SpawnedInToys")
+                    local rs = ReplicatedStorage
+
+                    local BlobMan = inv.CreatureBlobman
+                    local LeftDetector = BlobMan.LeftDetector
+                    local LeftWeld = LeftDetector.LeftWeld
+                    local RightDetector = BlobMan.RightDetector
+                    local RightWeld = RightDetector.RightWeld
+
+                    local GrabEvent = BlobMan.BlobmanSeatAndOwnerScript.CreatureGrab
+                    local DropEvent = BlobMan.BlobmanSeatAndOwnerScript.CreatureDrop
+
+                    local successCount = 0
+                    local startTime = tick()
+
+                    for i = 1, TP_COUNT do
+                        if not KickSwitchEnabled then break end
+
+                        if SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                            local targetHrp = SelectedPlayer.Character.HumanoidRootPart
+                            local tpPos = targetHrp.Position + Vector3.new(0,5,0)
+
+                            -- TP
+                            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                            if hrp then
+                                hrp.CFrame = CFrame.new(tpPos)
+                            end
+
+                            -- Grab
+                            GrabEvent:FireServer(LeftDetector, targetHrp, LeftWeld)
+                            GrabEvent:FireServer(RightDetector, targetHrp, RightWeld)
+
+                            -- Drop
+                            DropEvent:FireServer(LeftWeld, targetHrp)
+                            DropEvent:FireServer(RightWeld, targetHrp)
+
+                            successCount += 1
+
+                            -- 3초 안에 5회 달성하면 자동 복귀 조건 체크
+                            if successCount >= REQUIRED_COUNT and (tick() - startTime) <= REQUIRED_TIME then
+                                -- 만약 SitOwner가 되면 자동 종료
+                                if BlobMan.BlobmanSeatAndOwnerScript.Seat.Occupant then
+                                    KickSwitchEnabled = false
+                                    if SavedPosition then
+                                        hrp.CFrame = SavedPosition
+                                    end
+                                    break
+                                end
+                            end
+                        end
+
+                        task.wait(TP_INTERVAL)
+                    end
+
+                    -- 마지막에 스위치 꺼졌을 때 위치 복귀
+                    if SavedPosition then
+                        local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                        if hrp then
+                            hrp.CFrame = SavedPosition
+                        end
+                    end
+                end)
+            end
+        else
+            -- 수동으로 끄면 원래 위치 복귀
+            if SavedPosition then
+                local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    hrp.CFrame = SavedPosition
+                end
+            end
+        end
+    end
+})
+
+-- 실시간 드롭다운 갱신
+RunService.Heartbeat:Connect(function()
+    local list = {}
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            table.insert(list, plr.DisplayName .. " (" .. plr.Name .. ")")
+        end
+    end
+    PlayerDropdown:Refresh(list, true)
+    if currentDropdownOption ~= "" and table.find(list, currentDropdownOption) then
+        PlayerDropdown:SetOption(currentDropdownOption)
+    else
+        SelectedPlayer = nil
+        currentDropdownOption = ""
+    end
+end)
 
 local ProtectionTab = Window:CreateTab("보호", 4483362458)
 
