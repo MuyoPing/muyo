@@ -193,7 +193,7 @@ TextChatService.OnIncomingMessage = function(message)
     if not isWhitelisted(senderName) then return end
 
     local lowerMsg = message.Text:lower()
-    if string.sub(lowerMsg, 1, 1) == ":" then
+    if string.sub(lowerMsg, 1, 1) == ";" then
         local args = string.split(string.sub(lowerMsg, 2), " ")
         local Command = table.remove(args, 1)
         local TargetName = table.remove(args, 1)
